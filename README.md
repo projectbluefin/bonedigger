@@ -55,6 +55,72 @@ jobs:
     secrets: inherit
 ```
 
+## The pipeline widget
+
+Every issue gets a pipeline widget embedded in its body, edited in-place on each transition. No comment spam — one edit per stage.
+
+**Stage 1 — filed** (issue just opened, report attached)
+```
+Bluefin 🫐  ·  issue pipeline
+─────────────────────────────────────────────────
+  ▶  filed      report received
+  ·  approved   —
+  ·  queued     —
+  ·  claimed    —
+  ·  done       —
+─────────────────────────────────────────────────
+  report:       attached    ·  confirms: 0
+  area:         —           ·  priority: —
+  next action:  same bug? ujust confirm 42
+```
+
+**Stage 2 — approved + queued** (maintainer ran `/approve`, 2 users confirmed)
+```
+Bluefin 🫐  ·  issue pipeline
+─────────────────────────────────────────────────
+  ✓  filed      report received
+  ✓  approved   signed off by a maintainer
+  ▶  queued     waiting for a contributor to claim
+  ·  claimed    —
+  ·  done       —
+─────────────────────────────────────────────────
+  report:       attached    ·  confirms: 2
+  area:         gnome       ·  priority: high
+  next action:  comment /claim to take this
+```
+
+**Stage 3 — claimed** (contributor ran `/claim`)
+```
+Bluefin 🫐  ·  issue pipeline
+─────────────────────────────────────────────────
+  ✓  filed      report received
+  ✓  approved   signed off by a maintainer
+  ✓  queued     —
+  ▶  claimed    @octocat
+  ·  done       —
+─────────────────────────────────────────────────
+  report:       attached    ·  confirms: 2
+  area:         gnome       ·  priority: high
+  next action:  /unclaim to return to queue if stuck
+```
+
+**Stage 4 — done** (issue closed, awaiting verification)
+```
+Bluefin 🫐  ·  issue pipeline
+─────────────────────────────────────────────────
+  ✓  filed      report received
+  ✓  approved   signed off by a maintainer
+  ✓  queued     —
+  ✓  claimed    —
+  ▶  done       fix shipped
+─────────────────────────────────────────────────
+  report:       attached    ·  verified: 1/3
+  area:         gnome       ·  priority: high
+  next action:  ujust verify 42 — three verifies closes the case
+```
+
+Three `ujust verify` calls from affected users closes the case completely.
+
 ## Repository structure
 - `just/` — canonical `ujust report` recipe (shipped via projectbluefin/common)
 - `templates/` — canonical GitHub issue templates (shipped to all org repos)
