@@ -24,7 +24,11 @@ receivers:
       disk: {}
       filesystem:
         exclude_mount_points:
-          mount_points: [/proc/*, /sys/*, /dev/*, /run/*]
+          mount_points:
+            - ^/proc(/|$)
+            - ^/sys(/|$)
+            - ^/dev(/|$)
+            - ^/run(/|$)
           match_type: regexp
       network: {}
       paging: {}
@@ -36,6 +40,10 @@ receivers:
             enabled: true
           process.memory.utilization:
             enabled: true
+          process.command_line:
+            enabled: false
+          process.executable.path:
+            enabled: false
 
   journald:
     directory: /var/log/journal
@@ -54,8 +62,8 @@ receivers:
     priority: warning
 
   # docker_stats works against the Podman socket via Docker-compatible API.
-  # Rootless Podman socket: /run/user/1000/podman/podman.sock
-  # If the socket is absent this receiver fails silently (optional).
+  # Socket path /run/user/1000/ assumes UID 1000; the recipe patches this at runtime.
+  # If the socket is absent the receiver fails silently (optional).
   docker_stats:
     endpoint: unix:///run/user/1000/podman/podman.sock
     collection_interval: 10s
@@ -72,10 +80,10 @@ processors:
   resourcedetection:
     detectors: [system, env]
     system:
-      hostname_sources: [lookup]
+      hostname_sources: [os]
       resource_attributes:
         host.id:
-          enabled: true
+          enabled: false
         host.arch:
           enabled: true
         host.cpu.vendor.id:
@@ -107,6 +115,14 @@ processors:
         action: delete
       - key: container.name
         action: delete
+      - key: process.owner
+        action: delete
+      - key: process.command_line
+        action: delete
+      - key: process.executable.path
+        action: delete
+      - key: process.command
+        action: delete
 
   # 2b. Strip personally identifying log record attributes (journald fields).
   attributes/privacy_logs:
@@ -115,16 +131,31 @@ processors:
         action: delete
       - key: SYSLOG_IDENTIFIER
         action: delete
+      - key: _MACHINE_ID
+        action: delete
+      - key: _BOOT_ID
+        action: delete
+      - key: _UID
+        action: delete
+      - key: _GID
+        action: delete
+      - key: _CMDLINE
+        action: delete
+      - key: _EXE
+        action: delete
+      - key: _COMM
+        action: delete
 
   # 3. Scrub usernames and personal paths from log message bodies.
   transform/scrub_logs:
     log_statements:
       - context: log
         statements:
-          - replace_pattern(body, "/home/[^/\\s\"']+/", "/home/<redacted>/")
-          - replace_pattern(body, "USER=[^\\s\"']+", "USER=<redacted>")
-          - replace_pattern(body, "LOGNAME=[^\\s\"']+", "LOGNAME=<redacted>")
-          - replace_pattern(body, "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}", "<redacted-email>")
+          - replace_pattern(body, "/home/[^/\\s\"']+/", "/home/[REDACTED]/")
+          - replace_pattern(body, "/var/home/[^/\\s\"']+/", "/var/home/[REDACTED]/")
+          - replace_pattern(body, "USER=[^\\s\"']+", "USER=[REDACTED]")
+          - replace_pattern(body, "LOGNAME=[^\\s\"']+", "LOGNAME=[REDACTED]")
+          - replace_pattern(body, "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}", "[REDACTED-email]")
 
   # 4. Batch — must be last before exporters for efficient writes.
   batch: {}

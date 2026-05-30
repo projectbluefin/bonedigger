@@ -14,11 +14,13 @@ report:
     mkdir -p "$REPORT_ROOT"
     REPORT_DIR="$(mktemp -d "${REPORT_ROOT}/report-XXXXXX")"
     OTEL_CONFIG=""
+    OTEL_STDERR=""
     HAS_OTEL=0
 
     cleanup() {
         rm -rf "$REPORT_DIR"
         [[ -n "$OTEL_CONFIG" ]] && rm -f "$OTEL_CONFIG"
+        [[ -n "$OTEL_STDERR" ]] && rm -f "$OTEL_STDERR"
     }
     trap cleanup EXIT
 
@@ -59,9 +61,10 @@ report:
     KERNEL_VER="$(uname -r)"
     ARCH="$(uname -m)"
 
-    FLATPAK_LIST="$(printf '%s' "$FLATPAK_LIST" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
-    GNOME_EXTENSIONS="$(printf '%s' "$GNOME_EXTENSIONS" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
-    GROUPS_OUT="$(printf '%s' "$GROUPS_OUT" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
+    FLATPAK_LIST="$(printf '%s' "$FLATPAK_LIST" | sed -E 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g')"
+    GNOME_EXTENSIONS="$(printf '%s' "$GNOME_EXTENSIONS" | sed -E 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g')"
+    GROUPS_OUT="$(printf '%s' "$GROUPS_OUT" | sed -E 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g')"
+    GROUPS_OUT="$(printf '%s' "$GROUPS_OUT" | sed -E 's|^[^[:space:]]+ |[REDACTED] |')"
 
     # GPU detection — NVIDIA via nvidia-smi, AMD via DRM sysfs, all vendors via lspci
     GPU_PCI_LIST="$(lspci 2>/dev/null | grep -iE 'VGA|Display|3D controller|2D controller' || true)"
@@ -70,7 +73,12 @@ report:
 
     if command -v nvidia-smi &>/dev/null; then
         NVIDIA_SMI_OUTPUT="$(nvidia-smi -q 2>/dev/null || echo 'nvidia-smi -q failed')"
-        NVIDIA_SMI_OUTPUT="$(printf '%s' "$NVIDIA_SMI_OUTPUT" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
+        NVIDIA_SMI_OUTPUT="$(printf '%s' "$NVIDIA_SMI_OUTPUT" | sed -E 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g')"
+        NVIDIA_SMI_OUTPUT="$(printf '%s' "$NVIDIA_SMI_OUTPUT" | sed \
+            -e 's/GPU UUID[[:space:]]*:[[:space:]]*[A-Za-z0-9_-]*/GPU UUID                          : [REDACTED]/g' \
+            -e 's/Serial Number[[:space:]]*:[[:space:]]*[A-Za-z0-9_-]*/Serial Number                     : [REDACTED]/g' \
+            -e 's/Bus Id[[:space:]]*:[[:space:]]*[A-Za-z0-9:.]*[0-9][A-Za-z0-9:.]*/Bus Id                            : [REDACTED]/g' \
+            -e 's/Minor Number[[:space:]]*:[[:space:]]*[0-9]*/Minor Number                      : [REDACTED]/g')"
     fi
 
     for card in /sys/class/drm/card[0-9]*/; do
@@ -122,7 +130,12 @@ report:
         if gum confirm " Include deep hardware metrics? (~35 seconds)" --default=false; then
             OTELCOL_BINARY=""
             OTEL_CONFIG="$(mktemp "${REPORT_ROOT}/otel-config-XXXXXX.yaml")"
-            sed "s|/output/|${REPORT_DIR}/|g" "$OTEL_CONFIG_SOURCE" > "$OTEL_CONFIG"
+            OTEL_STDERR="$(mktemp "${REPORT_ROOT}/otel-stderr-XXXXXX.log")"
+            python3 -c "
+import sys
+content = open(sys.argv[1]).read()
+print(content.replace('/output/', sys.argv[2] + '/'), end='')
+" "$OTEL_CONFIG_SOURCE" "$REPORT_DIR" > "$OTEL_CONFIG"
 
             for candidate in \
                 "$HOME/.local/bin/otelcol-contrib" \
@@ -137,20 +150,24 @@ report:
             if [[ -n "$OTELCOL_BINARY" ]]; then
                 gum spin --spinner globe \
                     --title " Collecting deep hardware metrics..." \
-                    -- timeout 35 "$OTELCOL_BINARY" --config "$OTEL_CONFIG" 2>/dev/null || true
+                    -- timeout 35 "$OTELCOL_BINARY" --config "$OTEL_CONFIG" 2>"$OTEL_STDERR" || true
             elif command -v podman &>/dev/null; then
+                PODMAN_SOCK="/run/user/$(id -u)/podman/podman.sock"
+                SOCKET_MOUNT=""
+                [[ -S "$PODMAN_SOCK" ]] && SOCKET_MOUNT="-v ${PODMAN_SOCK}:/run/user/$(id -u)/podman/podman.sock"
                 gum spin --spinner globe \
                     --title " Collecting deep hardware metrics..." \
                     -- timeout 45 podman run --rm --privileged \
-                        --network=host \
                         -v /proc:/proc:ro \
                         -v /sys:/sys:ro \
                         -v /var/log/journal:/var/log/journal:ro \
                         -v /run/log/journal:/run/log/journal:ro \
-                        -v "${OTEL_CONFIG_SOURCE}:/etc/otelcol/config.yaml:ro" \
+                        -v "${OTEL_CONFIG}:/etc/otelcol/config.yaml:ro" \
                         -v "${REPORT_DIR}:/output" \
+                        ${SOCKET_MOUNT:+$SOCKET_MOUNT} \
                         docker.io/otel/opentelemetry-collector-contrib@sha256:a2a52e43c1a80aa94120ad78c2db68780eb90e6d11c8db5b3ce2f6a0cc6b5029 \
-                        2>/dev/null || true
+                        --config /etc/otelcol/config.yaml \
+                        2>"$OTEL_STDERR" || true
             else
                 gum style --foreground 214 --margin "0 2" \
                     "⚠ otelcol-contrib not found — deep metrics skipped."
@@ -160,6 +177,12 @@ report:
                 HAS_OTEL=1
                 gum style --foreground 82 --margin "0 2" "✓ Hardware metrics captured."
             fi
+            if [[ $HAS_OTEL -eq 0 && -s "$OTEL_STDERR" ]]; then
+                gum style --foreground 214 --margin "0 2" "⚠ Collector output:"
+                head -20 "$OTEL_STDERR" | gum style --foreground 245 --margin "0 4"
+            fi
+            [[ -n "$OTEL_STDERR" ]] && rm -f "$OTEL_STDERR"
+            OTEL_STDERR=""
         fi
     fi
 
