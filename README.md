@@ -95,9 +95,9 @@ Bluefin 🦖  ·  issue pipeline
 ```
 
 **Stage 3 — claimed** (contributor ran `/claim`)
-```
 This means volunteers can claim work, and if they give up, toss it back in the queue and grab another one.
 
+```
 Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
   ✓  filed      report received
