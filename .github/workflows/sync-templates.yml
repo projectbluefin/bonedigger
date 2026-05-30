@@ -1,0 +1,81 @@
+name: sync issue templates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'templates/**'
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - projectbluefin/common
+          - projectbluefin/dakota
+          - ublue-os/bluefin
+          - ublue-os/bluefin-lts
+    steps:
+      - name: Checkout bonedigger
+        uses: actions/checkout@v4
+        with:
+          path: bonedigger
+
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo }}
+          token: ${{ secrets.BONEDIGGER_SYNC_TOKEN }}
+          path: downstream
+
+      - name: Copy templates
+        run: |
+          mkdir -p downstream/.github/ISSUE_TEMPLATE
+          cp bonedigger/templates/*.yml downstream/.github/ISSUE_TEMPLATE/
+
+      - name: Open PR if changed
+        env:
+          GH_TOKEN: ${{ secrets.BONEDIGGER_SYNC_TOKEN }}
+          REPO: ${{ matrix.repo }}
+          SHA: ${{ github.sha }}
+        run: |
+          cd downstream
+          if git diff --quiet; then
+            echo "No template changes for $REPO — skipping."
+            exit 0
+          fi
+          BRANCH="bonedigger/sync-templates-${SHA::8}"
+          git config user.name "bonedigger"
+          git config user.email "bonedigger@projectbluefin.github.io"
+          git checkout -b "$BRANCH"
+          git add .github/ISSUE_TEMPLATE/
+          git commit -m "chore(templates): sync issue templates from projectbluefin/bonedigger@${SHA::8}
+
+Automated sync — templates are maintained in projectbluefin/bonedigger.
+Do not edit these files directly in this repo."
+          git push origin "$BRANCH"
+          gh pr create \
+            --repo "$REPO" \
+            --title "chore(templates): sync issue templates from bonedigger" \
+            --body "Automated template sync from [projectbluefin/bonedigger](https://github.com/projectbluefin/bonedigger) @ \`${SHA::8}\`.
+
+Templates are maintained in bonedigger — edit them there, not here.
+
+---
+- [ ] Review template changes before merging" \
+            --head "$BRANCH" \
+            --base main \
+            --label "kind/automation" 2>/dev/null || \
+          gh pr create \
+            --repo "$REPO" \
+            --title "chore(templates): sync issue templates from bonedigger" \
+            --body "Automated template sync from [projectbluefin/bonedigger](https://github.com/projectbluefin/bonedigger) @ \`${SHA::8}\`.
+
+Templates are maintained in bonedigger — edit them there, not here." \
+            --head "$BRANCH" \
+            --base main
