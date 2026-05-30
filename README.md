@@ -3,7 +3,7 @@
 > Client-server bug reporting for using GitHub as the message bus.
 
 ## How it works
-Telemetry sucks so we just make reporting issues to developers suck less. 
+Telemetry sucks so we just make reporting issues to developers suck less. This github action that anyone can use to have reports back to upstream. It uses `/etc/os-release` so should work on any distro. 
 
 
 ```
