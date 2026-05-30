@@ -63,6 +63,44 @@ report:
     GNOME_EXTENSIONS="$(printf '%s' "$GNOME_EXTENSIONS" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
     GROUPS_OUT="$(printf '%s' "$GROUPS_OUT" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
 
+    # GPU detection — NVIDIA via nvidia-smi, AMD via DRM sysfs, all vendors via lspci
+    GPU_PCI_LIST="$(lspci 2>/dev/null | grep -iE 'VGA|Display|3D controller|2D controller' || true)"
+    NVIDIA_SMI_OUTPUT=""
+    AMD_DRM_INFO=""
+
+    if command -v nvidia-smi &>/dev/null; then
+        NVIDIA_SMI_OUTPUT="$(nvidia-smi -q 2>/dev/null || echo 'nvidia-smi -q failed')"
+        NVIDIA_SMI_OUTPUT="$(printf '%s' "$NVIDIA_SMI_OUTPUT" | sed -E 's|/home/[^/[:space:]]+/|/home/<redacted>/|g')"
+    fi
+
+    for card in /sys/class/drm/card[0-9]*/; do
+        [[ -f "${card}device/gpu_busy_percent" ]] || continue
+        card_id="${card%/}"; card_id="${card_id##*/}"
+        busy="$(cat "${card}device/gpu_busy_percent" 2>/dev/null || true)"
+        vram_used="$(cat "${card}device/mem_info_vram_used" 2>/dev/null || true)"
+        vram_total="$(cat "${card}device/mem_info_vram_total" 2>/dev/null || true)"
+        gtt_used="$(cat "${card}device/mem_info_gtt_used" 2>/dev/null || true)"
+        gtt_total="$(cat "${card}device/mem_info_gtt_total" 2>/dev/null || true)"
+        vram_used_h="$(numfmt --to=iec-i -- "$vram_used" 2>/dev/null || echo "N/A")"
+        vram_total_h="$(numfmt --to=iec-i -- "$vram_total" 2>/dev/null || echo "N/A")"
+        gtt_used_h="$(numfmt --to=iec-i -- "$gtt_used" 2>/dev/null || echo "N/A")"
+        gtt_total_h="$(numfmt --to=iec-i -- "$gtt_total" 2>/dev/null || echo "N/A")"
+        gpu_temp="N/A"; gpu_power="N/A"
+        for hwmon in "${card}device/hwmon/hwmon"[0-9]*/; do
+            [[ -d "$hwmon" ]] || continue
+            if [[ -f "${hwmon}temp1_input" ]]; then
+                raw="$(cat "${hwmon}temp1_input" 2>/dev/null || true)"
+                [[ -n "$raw" ]] && gpu_temp="$(( raw / 1000 ))°C"
+            fi
+            if [[ -f "${hwmon}power1_average" ]]; then
+                raw="$(cat "${hwmon}power1_average" 2>/dev/null || true)"
+                [[ -n "$raw" ]] && gpu_power="$(( raw / 1000000 ))W"
+            fi
+            break
+        done
+        AMD_DRM_INFO+="| ${card_id} | ${busy:-N/A}% | ${vram_used_h} / ${vram_total_h} | ${gtt_used_h} / ${gtt_total_h} | ${gpu_temp} | ${gpu_power} |"$'\n'
+    done
+
     if [[ -z "$BOOTED_IMAGE" ]]; then
         BOOTED_IMAGE="${IMAGE_REF}:${IMAGE_TAG}"
     fi
@@ -118,7 +156,7 @@ report:
                     "⚠ otelcol-contrib not found — deep metrics skipped."
             fi
 
-            if [[ -f "$REPORT_DIR/report.otlp.json" ]]; then
+            if [[ -f "$REPORT_DIR/metrics.otlp.jsonl" || -f "$REPORT_DIR/logs.otlp.jsonl" ]]; then
                 HAS_OTEL=1
                 gum style --foreground 82 --margin "0 2" "✓ Hardware metrics captured."
             fi
@@ -164,9 +202,30 @@ report:
         fi
         printf '\n### Installed Flatpaks\n\n```\n%s\n```\n' "$FLATPAK_LIST"
         printf '\n### Output of `bootc status`\n\n```\n%s\n```\n' "$BOOTC_STATUS"
+        printf '\n### GPU Information\n\n'
+        if [[ -n "$GPU_PCI_LIST" ]]; then
+            printf '```\n%s\n```\n\n' "$GPU_PCI_LIST"
+        fi
+        if [[ -n "$NVIDIA_SMI_OUTPUT" ]]; then
+            printf '#### NVIDIA (`nvidia-smi -q`)\n\n```\n%s\n```\n' "$NVIDIA_SMI_OUTPUT"
+        fi
+        if [[ -n "$AMD_DRM_INFO" ]]; then
+            printf '\n#### AMD GPU (DRM sysfs)\n\n'
+            printf '| Card | GPU %% | VRAM Used / Total | GTT Used / Total | Temp | Power |\n'
+            printf '|------|--------|-------------------|------------------|------|-------|\n'
+            printf '%s' "$AMD_DRM_INFO"
+        fi
+        if [[ -z "$GPU_PCI_LIST" && -z "$NVIDIA_SMI_OUTPUT" && -z "$AMD_DRM_INFO" ]]; then
+            printf '_No GPU detected_\n'
+        fi
         if [[ $HAS_OTEL -eq 1 ]]; then
             printf '\n### Deep Hardware Metrics\n\n'
-            printf 'See `report.otlp.json` in this gist — structured metrics and journal logs (35-second sample).\n'
+            printf 'Structured telemetry is attached to this gist as OTLP JSON Lines files:\n\n'
+            [[ -f "$REPORT_DIR/metrics.otlp.jsonl" ]] && \
+                printf '- `metrics.otlp.jsonl` — host, process, and container metrics (35-second sample)\n'
+            [[ -f "$REPORT_DIR/logs.otlp.jsonl" ]] && \
+                printf '- `logs.otlp.jsonl` — journald service warnings/errors + kernel dmesg (35-second window)\n'
+            printf '\nTo inspect locally: `jq -c '"'"'.'"'"' metrics.otlp.jsonl` (one JSON object per line)\n'
         fi
     } > "$REPORT_DIR/summary.md"
 
@@ -189,9 +248,13 @@ report:
     gum style --foreground 245 --margin "0 2" "What will be uploaded to your GitHub gist:"
     SIZE_SUMMARY="$(ls -lh "$REPORT_DIR/summary.md" 2>/dev/null | awk '{print $5}')"
     gum style --margin "0 4" "  summary.md  (${SIZE_SUMMARY})"
-    if [[ -f "$REPORT_DIR/report.otlp.json" ]]; then
-        SIZE_OTEL="$(ls -lh "$REPORT_DIR/report.otlp.json" 2>/dev/null | awk '{print $5}')"
-        gum style --margin "0 4" "  report.otlp.json  (${SIZE_OTEL})"
+    if [[ -f "$REPORT_DIR/metrics.otlp.jsonl" ]]; then
+        SIZE_METRICS="$(ls -lh "$REPORT_DIR/metrics.otlp.jsonl" 2>/dev/null | awk '{print $5}')"
+        gum style --margin "0 4" "  metrics.otlp.jsonl  (${SIZE_METRICS})"
+    fi
+    if [[ -f "$REPORT_DIR/logs.otlp.jsonl" ]]; then
+        SIZE_LOGS="$(ls -lh "$REPORT_DIR/logs.otlp.jsonl" 2>/dev/null | awk '{print $5}')"
+        gum style --margin "0 4" "  logs.otlp.jsonl  (${SIZE_LOGS})"
     fi
     echo ""
 
@@ -217,17 +280,16 @@ report:
         fi
         gum style --foreground 245 --margin "0 4" "Open: $ISSUE_URL_BASE"
         gum style --foreground 245 --margin "0 4" "Report saved at: $REPORT_DIR/summary.md"
-        if [[ -f "$REPORT_DIR/report.otlp.json" ]]; then
-            gum style --foreground 245 --margin "0 4" "Telemetry saved at: $REPORT_DIR/report.otlp.json"
+        if [[ -f "$REPORT_DIR/metrics.otlp.jsonl" || -f "$REPORT_DIR/logs.otlp.jsonl" ]]; then
+            gum style --foreground 245 --margin "0 4" "Telemetry saved at: $REPORT_DIR/"
         fi
         trap - EXIT
         exit 0
     fi
 
     GIST_FILES=("$REPORT_DIR/summary.md")
-    if [[ -f "$REPORT_DIR/report.otlp.json" ]]; then
-        GIST_FILES+=("$REPORT_DIR/report.otlp.json")
-    fi
+    [[ -f "$REPORT_DIR/metrics.otlp.jsonl" ]] && GIST_FILES+=("$REPORT_DIR/metrics.otlp.jsonl")
+    [[ -f "$REPORT_DIR/logs.otlp.jsonl" ]] && GIST_FILES+=("$REPORT_DIR/logs.otlp.jsonl")
 
     if ! GIST_URL="$(gh gist create --public --desc "Diagnostic report $(date -I)" "${GIST_FILES[@]}")"; then
         echo ""

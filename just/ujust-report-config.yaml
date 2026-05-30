@@ -1,8 +1,12 @@
 # Canonical source: /var/home/jorge/src/dakota/files/otel/ujust-report-config.yaml
 # OTel collector config for `ujust report`
 # Collects system telemetry for 35s then exits (driven by `timeout` in the recipe).
-# Writes OTLP JSON to /output/report.otlp.json (bind-mounted from /tmp/ujust-report-*/)
+# Writes spec-compliant OTLP JSON Lines to:
+#   /output/metrics.otlp.jsonl  — host + process + container metrics
+#   /output/logs.otlp.jsonl     — journald service errors + kernel (dmesg)
+# The OTel file format spec requires one signal type per file.
 # All privacy scrubbing happens in processors before export — raw data never hits disk.
+# Processor ordering follows OTel best practice: memory_limiter → transforms → batch.
 
 receivers:
   hostmetrics:
@@ -41,8 +45,13 @@ receivers:
       - bluetooth.service
       - NetworkManager.service
       - systemd-coredump.service
-    priority: err
+    priority: warning
     all: false
+
+  journald/kernel:
+    directory: /var/log/journal
+    dmesg: true
+    priority: warning
 
   # docker_stats works against the Podman socket via Docker-compatible API.
   # Rootless Podman socket: /run/user/1000/podman/podman.sock
@@ -53,6 +62,12 @@ receivers:
     timeout: 5s
 
 processors:
+  # 0. Memory limiter — must be first in every pipeline to protect the collector.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
   # 1. Detect and attach host resource attributes (OTel semantic conventions).
   resourcedetection:
     detectors: [system, env]
@@ -111,10 +126,17 @@ processors:
           - replace_pattern(body, "LOGNAME=[^\\s\"']+", "LOGNAME=<redacted>")
           - replace_pattern(body, "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}", "<redacted-email>")
 
+  # 4. Batch — must be last before exporters for efficient writes.
+  batch: {}
+
 exporters:
-  # Writes OTLP JSON to /output/ (bind-mounted from /tmp/ujust-report-*/ on host).
-  file:
-    path: /output/report.otlp.json
+  # Two separate files: the OTel file format spec requires one signal type per file.
+  # Extension is .jsonl — the format is NDJSON (one JSON object per line), not valid JSON.
+  file/metrics:
+    path: /output/metrics.otlp.jsonl
+    format: json
+  file/logs:
+    path: /output/logs.otlp.jsonl
     format: json
 
 service:
@@ -124,9 +146,9 @@ service:
   pipelines:
     metrics:
       receivers: [hostmetrics, docker_stats]
-      processors: [resourcedetection, resource/privacy]
-      exporters: [file]
+      processors: [memory_limiter, resourcedetection, resource/privacy, batch]
+      exporters: [file/metrics]
     logs:
-      receivers: [journald]
-      processors: [resourcedetection, resource/privacy, attributes/privacy_logs, transform/scrub_logs]
-      exporters: [file]
+      receivers: [journald, journald/kernel]
+      processors: [memory_limiter, resourcedetection, resource/privacy, attributes/privacy_logs, transform/scrub_logs, batch]
+      exporters: [file/logs]
