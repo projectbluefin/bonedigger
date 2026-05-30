@@ -1,52 +1,36 @@
 name: "Feature request"
-description: "Propose an improvement with a clear problem and solution."
+description: "Propose something new. Specific proposals ship. Vague ones wait."
 labels: ["type/feature", "status/discussing"]
 type: "Feature"
 body:
   - type: markdown
     attributes:
       value: |
-        Clear feature requests are easier to evaluate and easier to build.
-        Focus on the problem, the proposed solution, and any alternatives you considered.
+        The bottleneck is almost never implementation — it is clarity. Contributors can ship well-scoped work fast, but only if the finish line is clear.
 
   - type: textarea
-    id: problem-statement
+    id: problem
     attributes:
-      label: "Problem statement"
-      description: "What is missing, painful, or confusing today?"
-      placeholder: |
-        I have to repeat the same manual setup on every fresh install,
-        and there is no documented one-step workflow for it.
+      label: "What would you like to see?"
+      description: "What is missing, broken, or annoying? Be specific — name the command, the file, the workflow step."
+      placeholder: "Add this feature or ask for a design review"
     validations:
       required: true
 
   - type: textarea
-    id: proposed-solution
+    id: solution
     attributes:
-      label: "Proposed solution"
-      description: "Describe the change you want to see."
-      placeholder: |
-        Add a supported command or workflow that completes the setup in one step,
-        and document it in the repository.
+      label: "What does done look like?"
+      description: "What command do you run? What do you see? What file changes?"
+      placeholder: "I should be able to set up Docker in one command"
     validations:
       required: true
 
   - type: textarea
-    id: alternatives-considered
-    attributes:
-      label: "Alternatives considered"
-      description: "What other approaches did you consider, and why are they not as good?"
-      placeholder: |
-        I considered keeping a shell script locally, but that is hard to maintain
-        and does not help other users.
-    validations:
-      required: false
-
-  - type: textarea
-    id: extra-context
+    id: extra
     attributes:
       label: "Extra context"
-      description: "Optional. Related issues, mockups, upstream references, or constraints."
-      placeholder: "Related issue: #45. Upstream reference: https://example.com/design"
+      description: "Optional — related issues, upstream references, or files you think are affected."
+      placeholder: "related issues, upstream references, or files you think are affected"
     validations:
       required: false

@@ -1,21 +1,18 @@
 name: "Help this project"
-description: "Donate agent time by pointing at a repo, issue, PR, or roadmap and asking for a focused report."
+description: "Donate agent time — point at a repo, issue, or PR and get a high-signal report back."
 labels: ["kind:agent-donation"]
 body:
   - type: markdown
     attributes:
       value: |
-        Point an agent at something and get a report back.
-
-        This template is for donating agent compute to the project. You provide a public target and a focused question.
-        The more specific the goal, the more actionable the result.
+        Point an agent at a repo, issue, or PR and get a report back. Be specific — "look at this repo" produces a shallow overview, a focused question produces something actionable.
 
   - type: input
     id: target-url
     attributes:
       label: "Target URL"
-      description: "Repository, issue, PR, roadmap, document, or other public URL."
-      placeholder: "https://github.com/owner/repo/issues/123"
+      description: "Repo, issue, PR, roadmap, or docs page. Must be publicly accessible."
+      placeholder: "https://github.com/owner/repo"
     validations:
       required: true
 
@@ -23,7 +20,7 @@ body:
     id: flow
     attributes:
       label: "What kind of help?"
-      description: "Choose the kind of investigation you want."
+      description: "This routes the right agent to the right task."
       options:
         - "Project report — survey a repo or org and summarize what needs attention"
         - "Issue review — read a linked issue and recommend next steps"
@@ -34,11 +31,12 @@ body:
   - type: textarea
     id: goal
     attributes:
-      label: "What should the agent focus on?"
-      description: "Be specific. One to three sentences is ideal."
+      label: "What specifically should the agent focus on?"
+      description: "The more specific you are, the more useful the report. One to three sentences."
       placeholder: |
-        Review the linked PR and check whether the implementation matches the issue,
-        whether the tests cover the change, and whether any obvious follow-up work remains.
+        Check whether the CI pipeline for this repo has any reliability issues that would
+        explain the flaky validate failures we have been seeing. Focus on the BST cache
+        interactions and the bst2 container pin check.
     validations:
       required: true
 
@@ -46,8 +44,8 @@ body:
     id: context
     attributes:
       label: "Extra context"
-      description: "Optional. Related links, known constraints, or areas to avoid."
-      placeholder: "Related to issue #123. Please avoid suggesting new external dependencies."
+      description: "Optional. Known problem areas, related Dakota issues, or constraints the agent should respect."
+      placeholder: "Related to #503. The agent should not suggest changes that require a new external dependency."
     validations:
       required: false
 
@@ -55,4 +53,4 @@ body:
     attributes:
       value: |
         ---
-        The report should come back on this issue so maintainers can review and decide what to do next.
+        Hive will route this to the right agent based on the flow type above. The agent files its report as a comment on this issue.
