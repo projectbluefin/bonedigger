@@ -24,31 +24,61 @@ ujust verify 42      # add a verify comment to issue #42 after an update
 | Load average | `/proc/loadavg` |
 | Memory usage | `free -h --si` |
 | Failed systemd units | `systemctl list-units --state=failed` |
-| Groups | `groups` |
+| Groups (membership only) | `groups` (username redacted) |
+| GPU info | `nvidia-smi -q` (NVIDIA), DRM sysfs (AMD), `lspci` (all) |
 | Optional: deep hardware metrics | OpenTelemetry (35s sample) |
 
 ## PII scrubbing
 
-All scrubbing happens on-device before any upload:
-- Home directory paths (`/home/<username>/`) → `/home/<redacted>/`
-- `machine-id` hashed to 8-char anonymous `HOST_ID` (SHA256, not reversible)
+All scrubbing happens on-device before any upload. Nothing identifying leaves the machine raw.
+
+| Data | Scrubbed to |
+|------|-------------|
+| `/home/<username>/` paths | `/home/[REDACTED]/` |
+| `/var/home/<username>/` paths | `/var/home/[REDACTED]/` |
+| `groups` leading username | `[REDACTED] : group1 group2 ...` |
+| NVIDIA GPU UUID | `[REDACTED]` |
+| NVIDIA Serial Number | `[REDACTED]` |
+| NVIDIA PCIe Bus Id | `[REDACTED]` |
+| NVIDIA Minor Number | `[REDACTED]` |
+| `USER=`, `LOGNAME=` env vars in logs | `[REDACTED]` |
+| Email addresses in logs | `[REDACTED-email]` |
+| `machine-id` | Hashed to 8-char anonymous `HOST_ID` (SHA256, not reversible) |
+| `host.id`, `host.name`, `host.ip`, `host.mac` | Deleted by OTel resource/privacy processor |
+| `_MACHINE_ID`, `_BOOT_ID`, `_UID`, `_GID`, `_CMDLINE`, `_EXE`, `_COMM` | Deleted from journald log attributes |
+| `process.owner`, `process.command_line`, `process.executable.path` | Deleted by OTel processor |
 
 ## Optional deep hardware metrics (OTel)
 
-If `/usr/share/ublue-os/otel/ujust-report-config.yaml` exists, the user is offered a 35-second hardware telemetry capture. Outputs `report.otlp.json`.
+Gated on `/usr/share/ublue-os/otel/ujust-report-config.yaml` existing in the image. If present, the user is offered a 35-second hardware telemetry capture. Outputs two spec-compliant OTLP NDJSON files (one signal type per file, per OTel spec):
+
+- `metrics.otlp.jsonl` — CPU, memory, disk, filesystem, network, paging, processes, Podman containers
+- `logs.otlp.jsonl` — journald service errors/warnings (gnome-shell, gdm, bluetooth, NetworkManager, systemd-coredump) + kernel dmesg (warning+)
+
+**OTel collector config highlights:**
+- `memory_limiter` first (512 MiB limit) — OTel best practice
+- `batch` last before exporters — OTel best practice
+- `host.id` disabled (machine-id derived)
+- Process scraper: `command_line` and `executable.path` metrics disabled at source
+- Filesystem exclusion regexes use proper anchors (`^/proc(/|$)` not `/proc/*`)
+- `hostname_sources: [os]` — no DNS lookup
 
 **Binary resolution order:**
 1. `$HOME/.local/bin/otelcol-contrib`
 2. `/usr/local/bin/otelcol-contrib`
 3. `$(command -v otelcol-contrib)`
-4. Fallback: `podman run docker.io/otel/opentelemetry-collector-contrib` (privileged, 45s timeout)
+4. Fallback: `podman run docker.io/otel/opentelemetry-collector-contrib` (privileged, 45s timeout, no `--network=host`)
+
+**Podman fallback mounts:** `/proc`, `/sys`, `/var/log/journal`, `/run/log/journal`, substituted config, output dir, and the Podman socket (dynamic `id -u`).
+
+**Config path substitution** uses `python3` (not `sed`) to safely replace `/output/` with `$REPORT_DIR/` — handles `&` and `\` in paths.
 
 ## Upload flow
 
 1. Show rendered report via `glow` + `gum pager` for local review
 2. Confirm upload with `gum confirm`
 3. If `gh auth status --active` fails → copy to clipboard (wl-copy or xclip), show issue URL
-4. If auth OK → `gh gist create --public` with `summary.md` (+ `report.otlp.json` if captured)
+4. If auth OK → `gh gist create --public` with `summary.md` (+ `metrics.otlp.jsonl` + `logs.otlp.jsonl` if captured)
 5. Offer to `xdg-open` issue URL with gist URL pre-filled as query param
 
 ## Environment variable overrides
@@ -72,8 +102,12 @@ If `/usr/share/ublue-os/otel/ujust-report-config.yaml` exists, the user is offer
 
 ## Report output structure
 
-`$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/summary.md` — Markdown report  
-`$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/report.otlp.json` — OTel metrics (if captured)
+```
+$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/
+  summary.md           — Markdown report (always)
+  metrics.otlp.jsonl   — OTel host/container metrics (if OTel captured)
+  logs.otlp.jsonl      — OTel journald + kernel logs (if OTel captured)
+```
 
 Temp directory is cleaned up on EXIT trap. Use `trap - EXIT; exit 0` to preserve files when user cancels.
 
