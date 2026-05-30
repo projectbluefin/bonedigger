@@ -1,0 +1,26 @@
+name: 'bonedigger'
+description: 'Issue lifecycle bot for Project Bluefin — filed → approved → queued → claimed → done'
+author: 'Project Bluefin'
+
+inputs:
+  brand_name:
+    description: 'Brand name shown in pipeline widget header'
+    required: false
+    default: 'Bluefin'
+  brand_emoji:
+    description: 'Emoji shown in pipeline widget header'
+    required: false
+    default: '🫐'
+  pipeline_marker:
+    description: 'HTML comment marker used to locate the pipeline widget in issue body'
+    required: false
+    default: '<!-- bonedigger-pipeline -->'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'bonedigger is a reusable workflow, not a composite action'
+      shell: bash
+      run: |
+        echo "Use bonedigger via: uses: projectbluefin/bonedigger/.github/workflows/lifecycle.yml@main"
+        echo "See README.md for usage."

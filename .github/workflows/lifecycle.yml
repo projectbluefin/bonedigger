@@ -1,0 +1,28 @@
+name: bonedigger lifecycle
+
+on:
+  workflow_call:
+    inputs:
+      brand_name:
+        description: 'Brand name shown in pipeline widget'
+        type: string
+        default: 'Bluefin'
+      brand_emoji:
+        description: 'Emoji shown in pipeline widget'
+        type: string
+        default: '🫐'
+      pipeline_marker:
+        description: 'HTML comment marker for pipeline widget'
+        type: string
+        default: '<!-- bonedigger-pipeline -->'
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Stub
+        run: echo "bonedigger lifecycle workflow — full implementation coming in v0.1.0"
