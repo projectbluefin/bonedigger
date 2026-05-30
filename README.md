@@ -61,7 +61,7 @@ Every issue gets a pipeline widget embedded in its body, edited in-place on each
 
 **Stage 1 — filed** (issue just opened, report attached)
 ```
-Bluefin 🫐  ·  issue pipeline
+Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
   ▶  filed      report received
   ·  approved   —
@@ -76,7 +76,7 @@ Bluefin 🫐  ·  issue pipeline
 
 **Stage 2 — approved + queued** (maintainer ran `/approve`, 2 users confirmed)
 ```
-Bluefin 🫐  ·  issue pipeline
+Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
   ✓  filed      report received
   ✓  approved   signed off by a maintainer
@@ -91,7 +91,7 @@ Bluefin 🫐  ·  issue pipeline
 
 **Stage 3 — claimed** (contributor ran `/claim`)
 ```
-Bluefin 🫐  ·  issue pipeline
+Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
   ✓  filed      report received
   ✓  approved   signed off by a maintainer
@@ -106,7 +106,7 @@ Bluefin 🫐  ·  issue pipeline
 
 **Stage 4 — done** (issue closed, awaiting verification)
 ```
-Bluefin 🫐  ·  issue pipeline
+Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
   ✓  filed      report received
   ✓  approved   signed off by a maintainer

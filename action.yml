@@ -10,7 +10,7 @@ inputs:
   brand_emoji:
     description: 'Emoji shown in pipeline widget header'
     required: false
-    default: '🫐'
+    default: '🦖'
   pipeline_marker:
     description: 'HTML comment marker used to locate the pipeline widget in issue body'
     required: false
