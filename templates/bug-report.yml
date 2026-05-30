@@ -1,6 +1,6 @@
 name: "Bug report"
 description: "Something is broken and needs investigation."
-labels: ["type/bug", "needs-triage"]
+labels: ["kind/bug", "needs-triage"]
 type: "Bug"
 body:
   - type: markdown
@@ -88,7 +88,7 @@ body:
     attributes:
       label: "Image name"
       description: "Which image are you running?"
-      placeholder: "ghcr.io/projectbluefin/bonedigger"
+      placeholder: "ghcr.io/projectbluefin/bluefin"
     validations:
       required: false
 
