@@ -1,0 +1,111 @@
+name: "Bug report"
+description: "Something is broken and needs investigation."
+labels: ["type/bug", "needs-triage"]
+type: "Bug"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug.
+
+        Before submitting, please search existing issues and run `ujust report` if you can.
+        The diagnostic report is optional, but it usually gives maintainers everything needed to triage quickly.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Before submitting"
+      options:
+        - label: "I searched existing issues and this is not a duplicate"
+          required: true
+        - label: "I ran `ujust report` or understand the diagnostic report link is optional"
+          required: false
+
+  - type: input
+    id: summary
+    attributes:
+      label: "Short description"
+      description: "Summarize the bug in one sentence."
+      placeholder: "Suspend resumes to a black screen on my laptop"
+    validations:
+      required: true
+
+  - type: input
+    id: report-link
+    attributes:
+      label: Diagnostic report link (optional)
+      description: |
+        Run `ujust report` on your machine and paste the gist URL here.
+        Nothing is required — but a report helps us triage much faster.
+      placeholder: "https://gist.github.com/..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "What happened, where did it happen, and how often does it happen?"
+      placeholder: |
+        After resuming from suspend, the display stays black and I have to reboot.
+        This happens every time on my device.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to reproduce"
+      description: "List the exact steps. If the problem is intermittent, say that too."
+      placeholder: |
+        1. Boot the system
+        2. Close the lid for 30 seconds
+        3. Open the lid
+        4. Observe the black screen
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "Expected behavior"
+      description: "What should have happened instead?"
+      placeholder: "The system should return to the login screen or desktop normally."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: "Actual behavior"
+      description: "What happened instead? Include exact error text if you have it."
+      placeholder: "The display remains black and the system does not recover without a hard reboot."
+    validations:
+      required: true
+
+  - type: input
+    id: image-name
+    attributes:
+      label: "Image name"
+      description: "Which image are you running?"
+      placeholder: "ghcr.io/projectbluefin/bonedigger"
+    validations:
+      required: false
+
+  - type: input
+    id: image-version
+    attributes:
+      label: "Image version"
+      description: "Paste the deployed image tag or version if you know it."
+      placeholder: "stable-41.20250914"
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: "Extra context"
+      description: "Optional. Hardware details, screenshots, logs, or links to related issues."
+      placeholder: "Framework 13 AMD, kernel 6.15.x, screenshot attached, related to #123"
+    validations:
+      required: false

@@ -1,0 +1,58 @@
+name: "Help this project"
+description: "Donate agent time by pointing at a repo, issue, PR, or roadmap and asking for a focused report."
+labels: ["kind:agent-donation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Point an agent at something and get a report back.
+
+        This template is for donating agent compute to the project. You provide a public target and a focused question.
+        The more specific the goal, the more actionable the result.
+
+  - type: input
+    id: target-url
+    attributes:
+      label: "Target URL"
+      description: "Repository, issue, PR, roadmap, document, or other public URL."
+      placeholder: "https://github.com/owner/repo/issues/123"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: flow
+    attributes:
+      label: "What kind of help?"
+      description: "Choose the kind of investigation you want."
+      options:
+        - "Project report — survey a repo or org and summarize what needs attention"
+        - "Issue review — read a linked issue and recommend next steps"
+        - "PR review — audit a linked PR for correctness and completeness"
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: "What should the agent focus on?"
+      description: "Be specific. One to three sentences is ideal."
+      placeholder: |
+        Review the linked PR and check whether the implementation matches the issue,
+        whether the tests cover the change, and whether any obvious follow-up work remains.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Extra context"
+      description: "Optional. Related links, known constraints, or areas to avoid."
+      placeholder: "Related to issue #123. Please avoid suggesting new external dependencies."
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        The report should come back on this issue so maintainers can review and decide what to do next.

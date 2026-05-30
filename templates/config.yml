@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.projectbluefin.io
+    about: Check the docs first — your question may already be answered.
+  - name: Community Discord
+    url: https://discord.gg/projectbluefin
+    about: For questions and general discussion.
