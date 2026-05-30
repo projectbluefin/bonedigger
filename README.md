@@ -1,8 +1,10 @@
 # bonedigger 🦴
 
-> Client-server bug reporting for Project Bluefin — using GitHub as the message bus.
+> Client-server bug reporting for using GitHub as the message bus.
 
 ## How it works
+Telemetry sucks so we just make reporting issues to developers suck less. 
+
 
 ```
 USER'S MACHINE                    GITHUB (bonedigger)
@@ -51,7 +53,7 @@ jobs:
     uses: projectbluefin/bonedigger/.github/workflows/lifecycle.yml@main
     with:
       brand_name: "Bluefin"
-      brand_emoji: "🫐"
+      brand_emoji: "🦖"
     secrets: inherit
 ```
 
@@ -60,6 +62,7 @@ jobs:
 Every issue gets a pipeline widget embedded in its body, edited in-place on each transition. No comment spam — one edit per stage.
 
 **Stage 1 — filed** (issue just opened, report attached)
+
 ```
 Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
@@ -75,6 +78,8 @@ Bluefin 🦖  ·  issue pipeline
 ```
 
 **Stage 2 — approved + queued** (maintainer ran `/approve`, 2 users confirmed)
+The more users confirm things the HIGHER it gets prioritized!
+
 ```
 Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
@@ -91,12 +96,14 @@ Bluefin 🦖  ·  issue pipeline
 
 **Stage 3 — claimed** (contributor ran `/claim`)
 ```
+This means volunteers can claim work, and if they give up, toss it back in the queue and grab another one.
+
 Bluefin 🦖  ·  issue pipeline
 ─────────────────────────────────────────────────
   ✓  filed      report received
   ✓  approved   signed off by a maintainer
   ✓  queued     —
-  ▶  claimed    @octocat
+  ▶  claimed    @jeefy
   ·  done       —
 ─────────────────────────────────────────────────
   report:       attached    ·  confirms: 2
