@@ -17,7 +17,7 @@ on:
       brand_emoji:
         description: 'Emoji shown in pipeline widget'
         type: string
-        default: '🫐'
+        default: '🦖'
       pipeline_marker:
         description: 'HTML comment marker used to locate/replace the pipeline widget'
         type: string
