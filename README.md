@@ -139,6 +139,17 @@ Three `ujust verify` calls from affected users closes the case completely.
 - Diagnostic gists belong to the user — bonedigger only reads them, never creates its own
 - No central server, no telemetry infrastructure required
 
+
+## Roadmap
+
+### Planned: crash/panic detection in `ujust report`
+
+The diagnostic collector currently captures a live system snapshot but has no awareness of what happened in the *previous* boot. A full class of bugs — kernel panics during sleep, hard lockups, abrupt reboots — leave zero trace in the current session.
+
+Planned work:
+- **[#11](https://github.com/projectbluefin/bonedigger/issues/11) — crash/panic detection section**: unclean boot classifier (4 buckets: clean shutdown / suspend-no-resume / abrupt end / journal unavailable), panic keyword scan of previous boot, crash artifact status (pstore, kdump, coredumps)
+- **[#12](https://github.com/projectbluefin/bonedigger/issues/12) — PII scrubbing for kernel log excerpts**: IPv4/IPv6, UUIDs, disk serials, MAC addresses
+
 ## Part of Project Bluefin
 - [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` to all variants
 - [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — reference implementation
