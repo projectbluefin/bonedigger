@@ -26,11 +26,14 @@ ujust verify 42      # add a verify comment to issue #42 after an update
 | Failed systemd units | `systemctl list-units --state=failed` |
 | Groups (membership only) | `groups` (username redacted) |
 | GPU info | `nvidia-smi -q` (NVIDIA), DRM sysfs (AMD), `lspci` (all) |
+| Crash / panic detection | Previous boot end state, panic keywords, kernel errors, hardware fingerprint, crash artifact status |
 | Optional: deep hardware metrics | OpenTelemetry (35s sample) |
 
 ## PII scrubbing
 
 All scrubbing happens on-device before any upload. Nothing identifying leaves the machine raw.
+
+### General scrubbing (applied to all collected data)
 
 | Data | Scrubbed to |
 |------|-------------|
@@ -47,6 +50,66 @@ All scrubbing happens on-device before any upload. Nothing identifying leaves th
 | `host.id`, `host.name`, `host.ip`, `host.mac` | Deleted by OTel resource/privacy processor |
 | `_MACHINE_ID`, `_BOOT_ID`, `_UID`, `_GID`, `_CMDLINE`, `_EXE`, `_COMM` | Deleted from journald log attributes |
 | `process.owner`, `process.command_line`, `process.executable.path` | Deleted by OTel processor |
+
+### Kernel log scrubbing — `scrub_kernel_log()` (applied to all kernel excerpts)
+
+Applied to every `journalctl -b -1 -k` excerpt. **Order matters** — MAC must run before IPv6 to get the right label.
+
+| Data | Pattern | Scrubbed to |
+|------|---------|-------------|
+| MAC addresses | `([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}` | `[MAC-REDACTED]` |
+| IPv4 addresses | `\b([0-9]{1,3}\.){3}[0-9]{1,3}\b` | `[IP-REDACTED]` |
+| IPv6 full (≥4 groups) | `([0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{0,4}` | `[IP-REDACTED]` |
+| IPv6 compressed (`::`) | `[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4})*::[0-9a-fA-F:]+` | `[IP-REDACTED]` |
+| UUIDs / GUIDs | `[0-9a-fA-F]{8}-...-[0-9a-fA-F]{12}` | `[UUID-REDACTED]` |
+| Disk/NVMe serials | `(eui\|naa\|wwn\.)[0-9a-fA-F]+` | `[SERIAL-REDACTED]` |
+| Home paths | same as general scrubbing | `[REDACTED]` |
+
+**IPv6 regex rationale:** The 4-group minimum (`{3,7}`) avoids false-positives on `HH:MM:SS` timestamps (only 3 groups). The `::` pattern is a separate pass to catch loopback (`::1`), link-local (`fe80::1`), etc.
+
+**`Linux version` line is intentionally excluded** from the hardware fingerprint — it can contain build host strings (e.g. `builduser@buildhost`). Extract only `DMI: .* BIOS` lines.
+
+## Crash / Panic Detection section
+
+Added to `just/report.just`. All data sourced from `journalctl -b -1` (previous boot). All kernel excerpts pass through `scrub_kernel_log()` before landing in `summary.md`.
+
+### Boot end-state classifier (4 buckets — never assume)
+
+| Status | Condition |
+|--------|-----------|
+| `previous boot journal unavailable` | `journalctl -b -1` returns no output |
+| `clean shutdown` | Shutdown markers found in tail-200 of boot -1 full journal |
+| `suspend entered — no resume recorded before next boot` | Last `PM: suspend (entry\|exit)` line in boot -1 kernel log is `entry` |
+| `abrupt end — resumed from suspend, no clean shutdown recorded` | Last PM line is `exit` (resumed OK, then crashed) |
+| `abrupt end — no shutdown or suspend markers found` | Neither shutdown nor any PM markers present |
+
+**Shutdown grep is scoped to `tail -200`** (not the full journal). Rationale: shutdown markers always appear at the end of a clean boot; streaming the full journal on the crash path (when no marker is found) can drain hundreds of thousands of lines with no progress indicator to the user.
+
+**Three PM buckets, not two.** A boot that resumed from suspend and then crashed must not be reported as "no suspend markers found" — it had suspend markers, just no clean shutdown after.
+
+### Data collected (only when boot -1 is available)
+
+| Sub-section | Command | Notes |
+|-------------|---------|-------|
+| Panic keyword scan | `journalctl -b -1 -k … \| grep -iE 'panic\|oops\|BUG:\|Call Trace\|RIP:\|…' \| tail -20` | `tail` not `head` — crash is at end |
+| Last kernel errors | `journalctl -b -1 -k -p err..emerg … \| tail -30` | |
+| Context window (last 30 kernel lines) | `journalctl -b -1 -k … \| tail -30` | Suppressed for clean shutdowns with no findings |
+| Hardware fingerprint | `grep -E 'DMI: .* BIOS' \| head -1` | DMI model + BIOS version only |
+
+### Crash artifact status (always collected, independent of boot -1)
+
+| Artifact | How detected |
+|----------|-------------|
+| pstore | `mountpoint -q /sys/fs/pstore` + `find` file count; "empty" ≠ "no crash" — may have been cleared on boot |
+| kdump | `systemctl is-enabled/is-active kdump.service` (service status, not `/var/crash` directory) |
+| Userspace coredumps | `coredumpctl list --since "7 days ago" \| tail -10` (home paths scrubbed) |
+
+### `set -euo pipefail` safety rules
+
+- Every `journalctl … | grep … | tail` pipeline ends with `|| true` inside `$()` — grep exits 1 on no match
+- Shutdown classification uses `if journalctl … | tail -200 | grep -qiE …` — safe in `if` conditions
+- `systemctl is-enabled kdump.service &>/dev/null` — safe in `if` condition
+- `${PSTORE_COUNT:-0}` — guards against empty find output
 
 ## Optional deep hardware metrics (OTel)
 
