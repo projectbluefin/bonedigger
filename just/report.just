@@ -66,6 +66,18 @@ report:
     GROUPS_OUT="$(printf '%s' "$GROUPS_OUT" | sed -E 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g')"
     GROUPS_OUT="$(printf '%s' "$GROUPS_OUT" | sed -E 's|^[^[:space:]]+ |[REDACTED] |')"
 
+    # PII scrubbing for kernel log excerpts: MAC → IPv4 → IPv6 (full/compressed) → UUID → disk serials → home paths
+    scrub_kernel_log() {
+        sed -E \
+            -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/[MAC-REDACTED]/gi' \
+            -e 's/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/[IP-REDACTED]/g' \
+            -e 's/([0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{0,4}/[IP-REDACTED]/gi' \
+            -e 's/[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4})*::[0-9a-fA-F:]+/[IP-REDACTED]/gi' \
+            -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/[UUID-REDACTED]/gi' \
+            -e 's/(eui\.|naa\.|wwn\.)[0-9a-fA-F]+/[SERIAL-REDACTED]/gi' \
+            -e 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g'
+    }
+
     # GPU detection — NVIDIA via nvidia-smi, AMD via DRM sysfs, all vendors via lspci
     GPU_PCI_LIST="$(lspci 2>/dev/null | grep -iE 'VGA|Display|3D controller|2D controller' || true)"
     NVIDIA_SMI_OUTPUT=""
@@ -108,6 +120,71 @@ report:
         done
         AMD_DRM_INFO+="| ${card_id} | ${busy:-N/A}% | ${vram_used_h} / ${vram_total_h} | ${gtt_used_h} / ${gtt_total_h} | ${gpu_temp} | ${gpu_power} |"$'\n'
     done
+
+    # === Crash / Panic Detection ===
+    PREV_BOOT_STATUS="previous boot journal unavailable"
+    PREV_BOOT_PANIC=""
+    PREV_BOOT_KERR=""
+    PREV_BOOT_KCTX=""
+    PREV_BOOT_HW=""
+    PSTORE_STATUS=""
+    KDUMP_STATUS=""
+    COREDUMPS=""
+
+    if journalctl -b -1 -n 1 --no-pager -q 2>/dev/null | grep -q .; then
+        # Classify previous boot end state (full journal grep — not just tail)
+        if journalctl -b -1 --no-pager -q 2>/dev/null | \
+                grep -qiE 'Reached target.*[Ss]hutdown|Power-Off\.|Shutting down\.|systemd-shutdown'; then
+            PREV_BOOT_STATUS="clean shutdown"
+        else
+            PREV_SUSPEND_LAST="$(journalctl -b -1 -k --no-pager 2>/dev/null | \
+                grep -E 'PM: suspend (entry|exit)' | tail -1 || true)"
+            if [[ "$PREV_SUSPEND_LAST" == *"PM: suspend entry"* ]]; then
+                PREV_BOOT_STATUS="suspend entered — no resume recorded before next boot"
+            else
+                PREV_BOOT_STATUS="abrupt end — no shutdown or suspend markers found"
+            fi
+        fi
+
+        PREV_BOOT_PANIC="$(journalctl -b -1 -k --no-pager 2>/dev/null | \
+            grep -iE 'panic|oops|BUG:|Call Trace|RIP:|hung_task|softlockup|hardlockup' | \
+            tail -20 | scrub_kernel_log || true)"
+
+        PREV_BOOT_KERR="$(journalctl -b -1 -k -p err..emerg --no-pager 2>/dev/null | \
+            tail -30 | scrub_kernel_log || true)"
+
+        # Context window only for non-clean boots or when there are findings
+        if [[ "$PREV_BOOT_STATUS" != "clean shutdown" || -n "$PREV_BOOT_PANIC" || -n "$PREV_BOOT_KERR" ]]; then
+            PREV_BOOT_KCTX="$(journalctl -b -1 -k --no-pager 2>/dev/null | \
+                tail -30 | scrub_kernel_log || true)"
+        fi
+
+        # Hardware fingerprint: DMI model + BIOS only (Linux version omitted — may contain build host strings)
+        PREV_BOOT_HW="$(journalctl -b -1 -k --no-pager 2>/dev/null | \
+            grep -E 'DMI: .* BIOS' | head -1 | scrub_kernel_log || true)"
+    fi
+
+    # Crash artifact status — always collected, independent of boot -1
+    if mountpoint -q /sys/fs/pstore 2>/dev/null; then
+        PSTORE_COUNT="$(find /sys/fs/pstore -maxdepth 1 -type f 2>/dev/null | wc -l || true)"
+        if [[ "${PSTORE_COUNT:-0}" -gt 0 ]]; then
+            PSTORE_STATUS="mounted — ${PSTORE_COUNT} file(s) present"
+        else
+            PSTORE_STATUS="mounted — empty (may have been cleared on boot)"
+        fi
+    else
+        PSTORE_STATUS="not mounted / not configured"
+    fi
+
+    if systemctl is-enabled kdump.service &>/dev/null; then
+        KDUMP_ACTIVE="$(systemctl is-active kdump.service 2>/dev/null || echo inactive)"
+        KDUMP_STATUS="enabled (${KDUMP_ACTIVE})"
+    else
+        KDUMP_STATUS="not enabled"
+    fi
+
+    COREDUMPS="$(coredumpctl list --no-pager --no-legend --since "7 days ago" 2>/dev/null | \
+        tail -10 | sed -E 's|/(var/)?home/[^/[:space:]]+/|/\1home/[REDACTED]/|g' || true)"
 
     if [[ -z "$BOOTED_IMAGE" ]]; then
         BOOTED_IMAGE="${IMAGE_REF}:${IMAGE_TAG}"
@@ -240,6 +317,36 @@ print(content.replace('/output/', sys.argv[2] + '/'), end='')
         fi
         if [[ -z "$GPU_PCI_LIST" && -z "$NVIDIA_SMI_OUTPUT" && -z "$AMD_DRM_INFO" ]]; then
             printf '_No GPU detected_\n'
+        fi
+        printf '\n### Crash / Panic Detection\n\n'
+        if [[ "$PREV_BOOT_STATUS" == "previous boot journal unavailable" ]]; then
+            printf '_Previous boot journal unavailable._\n'
+        else
+            printf '**Previous boot end state:** %s\n\n' "$PREV_BOOT_STATUS"
+            printf '#### Panic / Oops Keywords (previous boot)\n\n'
+            if [[ -n "$PREV_BOOT_PANIC" ]]; then
+                printf '```\n%s\n```\n' "$PREV_BOOT_PANIC"
+            else
+                printf '_None found_\n'
+            fi
+            if [[ -n "$PREV_BOOT_KERR" ]]; then
+                printf '\n#### Last Kernel Errors (previous boot)\n\n```\n%s\n```\n' "$PREV_BOOT_KERR"
+            fi
+            if [[ -n "$PREV_BOOT_KCTX" ]]; then
+                printf '\n#### Previous Boot Last Kernel Lines\n\n```\n%s\n```\n' "$PREV_BOOT_KCTX"
+            fi
+            if [[ -n "$PREV_BOOT_HW" ]]; then
+                printf '\n#### Previous Boot Hardware Fingerprint\n\n```\n%s\n```\n' "$PREV_BOOT_HW"
+            fi
+        fi
+        printf '\n#### Crash Artifact Status\n\n'
+        printf '| Artifact | Status |\n|----------|--------|\n'
+        printf '| pstore | %s |\n' "$PSTORE_STATUS"
+        printf '| kdump | %s |\n' "$KDUMP_STATUS"
+        if [[ -n "$COREDUMPS" ]]; then
+            printf '\n#### Userspace Coredumps (last 7 days)\n\n```\n%s\n```\n' "$COREDUMPS"
+        else
+            printf '| Userspace coredumps (last 7 days) | none |\n'
         fi
         if [[ $HAS_OTEL -eq 1 ]]; then
             printf '\n### Deep Hardware Metrics\n\n'
