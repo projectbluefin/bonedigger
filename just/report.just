@@ -132,8 +132,10 @@ report:
     COREDUMPS=""
 
     if journalctl -b -1 -n 1 --no-pager -q 2>/dev/null | grep -q .; then
-        # Classify previous boot end state (full journal grep — not just tail)
-        if journalctl -b -1 --no-pager -q 2>/dev/null | \
+        # Classify previous boot end state.
+        # Scope shutdown check to the final 200 lines — the crash path must drain the full
+        # journal otherwise, which can be hundreds of thousands of lines.
+        if journalctl -b -1 --no-pager -q 2>/dev/null | tail -200 | \
                 grep -qiE 'Reached target.*[Ss]hutdown|Power-Off\.|Shutting down\.|systemd-shutdown'; then
             PREV_BOOT_STATUS="clean shutdown"
         else
@@ -141,6 +143,8 @@ report:
                 grep -E 'PM: suspend (entry|exit)' | tail -1 || true)"
             if [[ "$PREV_SUSPEND_LAST" == *"PM: suspend entry"* ]]; then
                 PREV_BOOT_STATUS="suspend entered — no resume recorded before next boot"
+            elif [[ "$PREV_SUSPEND_LAST" == *"PM: suspend exit"* ]]; then
+                PREV_BOOT_STATUS="abrupt end — resumed from suspend, no clean shutdown recorded"
             else
                 PREV_BOOT_STATUS="abrupt end — no shutdown or suspend markers found"
             fi
