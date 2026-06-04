@@ -26,15 +26,16 @@ Located in `templates/` in this repo. Synced automatically to downstream repos o
 **Downstream repos:**
 - `projectbluefin/common`
 - `projectbluefin/dakota`
-- `ublue-os/bluefin`
-- `ublue-os/bluefin-lts`
+- `projectbluefin/bluefin`
+- `projectbluefin/bluefin-lts`
+- `projectbluefin/knuckle`
 
 **Mechanism:**
 1. Checkout bonedigger + downstream repo
 2. Copy `templates/*.yml` → `downstream/.github/ISSUE_TEMPLATE/`
 3. If diff exists, open a PR on the downstream repo
 
-**Required secret:** `BONEDIGGER_SYNC_TOKEN` — PAT with write access to all downstream repos.
+**Auth pattern:** mergeraptor GitHub App token via `MERGERAPTOR_APP_ID` + `MERGERAPTOR_PRIVATE_KEY`. PATs are not allowed.
 
 **PR branch naming:** `bonedigger/sync-templates-<sha8>`
 
