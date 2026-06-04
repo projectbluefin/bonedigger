@@ -76,5 +76,6 @@ Inputs: `brand_name`, `brand_emoji`, `pipeline_marker` (default: `<!-- bonedigge
 
 - [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` to all variants
 - [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — reference implementation
-- [ublue-os/bluefin](https://github.com/ublue-os/bluefin) — downstream template recipient
-- [ublue-os/bluefin-lts](https://github.com/ublue-os/bluefin-lts) — downstream template recipient
+- [projectbluefin/bluefin](https://github.com/projectbluefin/bluefin) — downstream template recipient
+- [projectbluefin/bluefin-lts](https://github.com/projectbluefin/bluefin-lts) — downstream template recipient
+- [projectbluefin/knuckle](https://github.com/projectbluefin/knuckle) — downstream template recipient
