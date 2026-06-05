@@ -1,23 +1,36 @@
 # bonedigger 🦴
 
-> Client-server bug reporting for using GitHub as the message bus.
+> `ujust report` filing + confirm-driven priority escalation, using GitHub as the message bus.
+
+## Current scope
+
+Lifecycle management moved to [`projectbluefin/common/.github/workflows/lifecycle.yml`](https://github.com/projectbluefin/common/blob/main/.github/workflows/lifecycle.yml).
+
+**bonedigger now handles only:**
+- `ujust report` issue detection on open
+- confirm-count priority escalation (`3+` → `priority/p1`, `5+` → `priority/p0`)
+- bonedigger-specific **agent donation** fast-track labels on issue open
+
+**Owned by `common` now:**
+- slash commands like `/approve`, `/claim`, `/unclaim`, `/wontfix`, `/hold`
+- issue body widget rendering
+- label creation / sync
+- stale sweeps and lifecycle transitions
 
 ## How it works
-Telemetry sucks so we just make reporting issues to developers suck less. This github action that anyone can use to have reports back to upstream. It uses `/etc/os-release` so should work on any distro. 
-
 
 ```
-USER'S MACHINE                    GITHUB (bonedigger)
-─────────────────                 ──────────────────────────────
-ujust report                      lifecycle action (server)
-  └─ collects diagnostics           └─ on issue open:
-  └─ PII scrub on-device               └─ parse diagnostic gist
-  └─ user reviews locally              └─ post diagnosis card
-  └─ uploads to user's gist            └─ auto-label from data
-  └─ opens issue w/ gist link          └─ pipeline: filed→approved→queued→claimed→done
-                                     └─ /claim /unclaim /approve /lgtm /wontfix
-ujust confirm <issue#>               └─ confirm count → priority escalation
-ujust verify <issue#>                └─ new image ships → auto-close old-digest issues
+USER'S MACHINE                    GITHUB
+─────────────────                 ─────────────────────────────────────────
+ujust report                      bonedigger lifecycle workflow
+  └─ collects diagnostics           └─ detect `ujust report` issue bodies
+  └─ PII scrub on-device            └─ keep confirm-based priority labels in sync
+  └─ user reviews locally           └─ fast-track agent donation issues
+  └─ uploads to user's gist
+  └─ opens issue w/ gist link     common lifecycle workflow
+                                   └─ slash commands + widget + queue state
+ujust confirm <issue#>            └─ bonedigger re-counts confirms
+                                     and escalates priority labels
 ```
 
 GitHub Issues is the only backend. No central server. User owns their data.
@@ -38,11 +51,9 @@ Add to `.github/workflows/bonedigger.yml`:
 name: bonedigger
 on:
   issues:
-    types: [opened, labeled, closed]
+    types: [opened]
   issue_comment:
     types: [created]
-  schedule:
-    - cron: '0 9 * * *'
 
 permissions:
   issues: write
@@ -51,94 +62,21 @@ permissions:
 jobs:
   bonedigger:
     uses: projectbluefin/bonedigger/.github/workflows/lifecycle.yml@main
-    with:
-      brand_name: "Bluefin"
-      brand_emoji: "🦖"
     secrets: inherit
 ```
 
-## The pipeline widget
-
-Every issue gets a pipeline widget embedded in its body, edited in-place on each transition. No comment spam — one edit per stage.
-
-**Stage 1 — filed** (issue just opened, report attached)
-
-```
-Bluefin 🦖  ·  issue pipeline
-─────────────────────────────────────────────────
-  ▶  filed      report received
-  ·  approved   —
-  ·  queued     —
-  ·  claimed    —
-  ·  done       —
-─────────────────────────────────────────────────
-  report:       attached    ·  confirms: 0
-  area:         —           ·  priority: —
-  next action:  same bug? ujust confirm 42
-```
-
-**Stage 2 — approved + queued** (maintainer ran `/approve`, 2 users confirmed)
-The more users confirm things the HIGHER it gets prioritized!
-
-```
-Bluefin 🦖  ·  issue pipeline
-─────────────────────────────────────────────────
-  ✓  filed      report received
-  ✓  approved   signed off by a maintainer
-  ▶  queued     waiting for a contributor to claim
-  ·  claimed    —
-  ·  done       —
-─────────────────────────────────────────────────
-  report:       attached    ·  confirms: 2
-  area:         gnome       ·  priority: high
-  next action:  comment /claim to take this
-```
-
-**Stage 3 — claimed** (contributor ran `/claim`)
-This means volunteers can claim work, and if they give up, toss it back in the queue and grab another one.
-
-```
-Bluefin 🦖  ·  issue pipeline
-─────────────────────────────────────────────────
-  ✓  filed      report received
-  ✓  approved   signed off by a maintainer
-  ✓  queued     —
-  ▶  claimed    @jeefy
-  ·  done       —
-─────────────────────────────────────────────────
-  report:       attached    ·  confirms: 2
-  area:         gnome       ·  priority: high
-  next action:  /unclaim to return to queue if stuck
-```
-
-**Stage 4 — done** (issue closed, awaiting verification)
-```
-Bluefin 🦖  ·  issue pipeline
-─────────────────────────────────────────────────
-  ✓  filed      report received
-  ✓  approved   signed off by a maintainer
-  ✓  queued     —
-  ✓  claimed    —
-  ▶  done       fix shipped
-─────────────────────────────────────────────────
-  report:       attached    ·  verified: 1/3
-  area:         gnome       ·  priority: high
-  next action:  ujust verify 42 — three verifies closes the case
-```
-
-Three `ujust verify` calls from affected users closes the case completely.
+If you also want lifecycle widgets, slash commands, and queue management, wire the caller from `projectbluefin/common/.github/workflows/lifecycle.yml` too.
 
 ## Repository structure
 - `just/` — canonical `ujust report` recipe (shipped via projectbluefin/common)
 - `templates/` — canonical GitHub issue templates (shipped to all org repos)
-- `.github/workflows/lifecycle.yml` — reusable lifecycle workflow
+- `.github/workflows/lifecycle.yml` — reusable reporting workflow
 - `action.yml` — composite action entrypoint
 
 ## Privacy
 - All PII scrubbing happens on the user's machine before any upload
 - Diagnostic gists belong to the user — bonedigger only reads them, never creates its own
 - No central server, no telemetry infrastructure required
-
 
 ## Roadmap
 
@@ -151,5 +89,5 @@ Planned work:
 - **[#12](https://github.com/projectbluefin/bonedigger/issues/12) — PII scrubbing for kernel log excerpts**: IPv4/IPv6, UUIDs, disk serials, MAC addresses
 
 ## Part of Project Bluefin
-- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` to all variants
+- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and owns lifecycle management
 - [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — reference implementation

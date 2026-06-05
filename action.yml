@@ -1,18 +1,18 @@
 name: 'bonedigger'
-description: 'Issue lifecycle bot for Project Bluefin — filed → approved → queued → claimed → done'
+description: 'ujust report intake, confirm-driven priority escalation, and agent donation fast-track for Project Bluefin'
 author: 'Project Bluefin'
 
 inputs:
   brand_name:
-    description: 'Brand name shown in pipeline widget header'
+    description: 'Retained for backward compatibility; ignored by the slim workflow'
     required: false
     default: 'Bluefin'
   brand_emoji:
-    description: 'Emoji shown in pipeline widget header'
+    description: 'Retained for backward compatibility; ignored by the slim workflow'
     required: false
     default: '🦖'
   pipeline_marker:
-    description: 'HTML comment marker used to locate the pipeline widget in issue body'
+    description: 'Retained for backward compatibility; ignored by the slim workflow'
     required: false
     default: '<!-- bonedigger-pipeline -->'
 
@@ -23,4 +23,5 @@ runs:
       shell: bash
       run: |
         echo "Use bonedigger via: uses: projectbluefin/bonedigger/.github/workflows/lifecycle.yml@main"
+        echo "bonedigger now scopes to ujust report intake, confirm-based priority escalation, and agent donation fast-track."
         echo "See README.md for usage."
