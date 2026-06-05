@@ -1,25 +1,21 @@
 name: bonedigger lifecycle
 
-# actionadon-derived lifecycle bot for reusable issue pipelines.
-# Pipeline: filed → approved → queued → claimed → done
-# Commands: /claim  /unclaim  /approve (/lgtm alias)  /wontfix
-#
-# The pipeline widget lives in the issue body, updated in place on every
-# transition. Zero comments for pipeline state — one edit per stage.
+# bonedigger now scopes to ujust-report intake, confirm-based priority escalation,
+# and the bonedigger-specific agent donation fast-track.
 
 on:
   workflow_call:
     inputs:
       brand_name:
-        description: 'Brand name shown in pipeline widget'
+        description: 'Retained for backward compatibility; ignored by the slim workflow'
         type: string
         default: 'Bluefin'
       brand_emoji:
-        description: 'Emoji shown in pipeline widget'
+        description: 'Retained for backward compatibility; ignored by the slim workflow'
         type: string
         default: '🦖'
       pipeline_marker:
-        description: 'HTML comment marker used to locate/replace the pipeline widget'
+        description: 'Retained for backward compatibility; ignored by the slim workflow'
         type: string
         default: '<!-- bonedigger-pipeline -->'
 
@@ -28,62 +24,29 @@ permissions:
   contents: read
 
 env:
-  DONATION_WORKFLOW_MARKER: "Workflow: Agent Donation"
+  DONATION_WORKFLOW_MARKER: 'Workflow: Agent Donation'
 
 jobs:
-  ensure-labels:
-    if: >-
-      github.event_name == 'issues' ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request == null &&
-       (startsWith(github.event.comment.body, '/claim') ||
-        startsWith(github.event.comment.body, '/unclaim') ||
-        startsWith(github.event.comment.body, '/approve') ||
-        startsWith(github.event.comment.body, '/lgtm') ||
-        startsWith(github.event.comment.body, '/wontfix')))
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Create lifecycle labels
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          label() {
-            gh label create "$1" --color "$2" --description "$3" --repo "$REPO" 2>/dev/null \
-              || gh label edit "$1" --color "$2" --description "$3" --repo "$REPO" 2>/dev/null \
-              || true
-          }
-          label "status/triage"           "d4c5f9" "Needs human review — set kind, priority, and area."
-          label "status/discussing"      "7c83fd" "Under discussion — not yet approved for the build queue."
-          label "status/approved"        "2ea44f" "Approved — ready for contributors."
-          label "status/queued"      "a467dc" "Has a spec, ready to claim — comment /claim."
-          label "status/claimed"          "e8b86d" "In active work — comment /unclaim to return."
-          label "priority/p1"          "e11d48" "Affects 3+ users — confirmed reproductions."
-          label "priority/p0"      "b60205" "Affects 5+ users — needs immediate attention."
-          label "stale-digest"           "e4e669" "Issue filed against an outdated image digest."
-          label "lgtm"                   "0e8a16" "Maintainer approved — ready to merge."
-          label "agent/blocked"          "e74c3c" "Blocked — needs human input before work can continue."
-          label "needs-human/agent-oops" "f795fe" "Agent error — do not touch; humans only."
-          label "flow/agent-donation"    "1b7f83" "Donate agent time for a repo, issue, or PR review/report request."
-          label "flow/project-report"    "0e8a16" "Agent flow: produce a sourced project report."
-          label "flow/issue-review"      "5319e7" "Agent flow: review a linked issue and produce a sourced report."
-          label "flow/pr-review"         "fbca04" "Agent flow: review a linked pull request and produce a sourced report."
-          label "status/hold"             "8b949e" "Do not touch; intentionally held by humans."
-          label "do-not-merge"           "b60205" "Do not merge or automate this item."
-
   on-issue-opened:
     if: github.event_name == 'issues' && github.event.action == 'opened'
-    needs: ensure-labels
     runs-on: ubuntu-24.04
+    concurrency:
+      group: bonedigger-issue-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
     steps:
-      - name: Detect donation flow
-        id: donation
+      - name: Detect bonedigger flows
+        id: detect
         env:
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
+          DATA=$(gh issue view "$ISSUE_URL" --json body,labels)
+          ISSUE_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
+
           WORKFLOW="standard"
           FLOW_LABEL=""
+          IS_UJUST_REPORT=false
+
           if printf '%s\n' "$ISSUE_BODY" | grep -Fq "$DONATION_WORKFLOW_MARKER"; then
             WORKFLOW="agent_donation"
             FLOW_LABEL="flow/project-report"
@@ -93,306 +56,84 @@ jobs:
               FLOW_LABEL="flow/issue-review"
             fi
           fi
-          echo "workflow=$WORKFLOW" >> "$GITHUB_OUTPUT"
-          echo "flow_label=$FLOW_LABEL" >> "$GITHUB_OUTPUT"
+
+          if printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
+            || printf '%s\n' "$ISSUE_BODY" | grep -Eqi '^### ujust report gist url$'; then
+            IS_UJUST_REPORT=true
+          fi
+
+          {
+            echo "workflow=$WORKFLOW"
+            echo "flow_label=$FLOW_LABEL"
+            echo "is_ujust_report=$IS_UJUST_REPORT"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Fast-track donated agent work
-        if: steps.donation.outputs.workflow == 'agent_donation'
+        if: steps.detect.outputs.workflow == 'agent_donation'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          FLOW_LABEL: ${{ steps.detect.outputs.flow_label }}
+        run: |
+          ARGS=(
+            --add-label "status/approved"
+            --add-label "status/queued"
+            --add-label "flow/agent-donation"
+          )
+
+          if [ -n "$FLOW_LABEL" ]; then
+            ARGS+=(--add-label "$FLOW_LABEL")
+          fi
+
+          gh issue edit "$ISSUE_URL" "${ARGS[@]}"
+
+      - name: Sync priority labels for ujust report issues
+        if: steps.detect.outputs.workflow != 'agent_donation' && steps.detect.outputs.is_ujust_report == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
-          FLOW_LABEL: ${{ steps.donation.outputs.flow_label }}
         run: |
-          gh issue edit "$ISSUE_URL" \
-            --add-label "status/approved" \
-            --add-label "status/queued" \
-            --add-label "flow/agent-donation" \
-            --add-label "$FLOW_LABEL"
-          # stage 2 = queued (auto-approved on donation)
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
+          DATA=$(gh issue view "$ISSUE_URL" --json comments)
+          CONFIRMS=$(printf '%s' "$DATA" | jq -r --arg issue_number "$ISSUE_NUMBER" '[.comments[].body // "" | select(test("(?i)^[[:space:]]*ujust confirm[[:space:]]+" + $issue_number + "([[:space:][:punct:]]|$)"))] | length')
+
           if [ "$CONFIRMS" -ge 5 ]; then
             gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" --remove-label "priority/p1" 2>/dev/null || true
           elif [ "$CONFIRMS" -ge 3 ]; then
             gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
           fi
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ▶  queued     waiting for a contributor to claim\n  ·  claimed    —\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  comment /claim to take this\n```\n\n---\n\n' "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
 
-      - name: Filed — add triage label and widget
-        if: steps.donation.outputs.workflow != 'agent_donation'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-        run: |
-          gh issue edit "$ISSUE_URL" --add-label "status/triage"
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          # On open the body has no widget yet — use as-is
-          CLEAN="$FULL_BODY"
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
-          if [ "$CONFIRMS" -ge 5 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
-          elif [ "$CONFIRMS" -ge 3 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
-          fi
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ▶  filed      report received\n  ·  approved   —\n  ·  queued     —\n  ·  claimed    —\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  same bug? ujust confirm %s\n```\n\n---\n\n' "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY" "$ISSUE_NUMBER")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
-
-  on-labeled:
-    if: github.event_name == 'issues' && github.event.action == 'labeled'
-    needs: ensure-labels
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Approved — auto-queue and update widget
-        if: github.event.label.name == 'status/approved'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-        run: |
-          gh issue edit "$ISSUE_URL" --add-label "status/queued"
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ▶  queued     waiting for a contributor to claim\n  ·  claimed    —\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  comment /claim to take this\n```\n\n---\n\n' "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
-
-      - name: Claimed — update widget
-        if: github.event.label.name == 'status/claimed'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-        run: |
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
-          ASSIGNEE=$(printf '%s' "$DATA" | jq -r '.assignees[0].login // "—"')
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ✓  queued     —\n  ▶  claimed    @%s\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  /unclaim to return to queue if stuck\n```\n\n---\n\n' "$ASSIGNEE" "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
-
-  on-issue-closed:
-    if: github.event_name == 'issues' && github.event.action == 'closed'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Done — update widget
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-        run: |
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          VERIFIED=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust verify";"i"))] | length')
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ✓  queued     —\n  ✓  claimed    —\n  ▶  done       fix shipped\n─────────────────────────────────────────────────\n  report:       %-10s  ·  verified: %s/3\n  area:         %-10s  ·  priority: %s\n  next action:  ujust verify %s — three verifies closes the case\n```\n🦖 rawr\n\n---\n\n' "$REPORT" "$VERIFIED" "$AREA" "$PRIORITY" "$ISSUE_NUMBER")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
-
-  claim-handler:
+  on-issue-comment:
     if: >-
       github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request == null &&
-      (startsWith(github.event.comment.body, '/claim') ||
-       startsWith(github.event.comment.body, '/unclaim') ||
-       startsWith(github.event.comment.body, '/approve') ||
-       startsWith(github.event.comment.body, '/lgtm') ||
-       startsWith(github.event.comment.body, '/wontfix'))
-    needs: ensure-labels
+      github.event.action == 'created' &&
+      github.event.issue.pull_request == null
     runs-on: ubuntu-24.04
+    concurrency:
+      group: bonedigger-issue-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
     steps:
-      - name: Resolve commenter permission
-        id: permission
+      - name: Sync priority labels from confirm count
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMENTER: ${{ github.event.comment.user.login }}
-          REPO: ${{ github.repository }}
-        run: |
-          PERMISSION=$(gh api "repos/${REPO}/collaborators/${COMMENTER}/permission" \
-            --jq '.permission' 2>/dev/null || echo "none")
-          HAS_WRITE=false
-          case "$PERMISSION" in admin|maintain|write) HAS_WRITE=true ;; esac
-          echo "has_write=$HAS_WRITE" >> "$GITHUB_OUTPUT"
-
-      - name: Handle /claim
-        if: startsWith(github.event.comment.body, '/claim')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          COMMENTER: ${{ github.event.comment.user.login }}
-        run: |
-          LABELS=$(gh issue view "$ISSUE_URL" --json labels --jq '[.labels[].name] | join(",")')
-          if echo "$LABELS" | grep -q "status/claimed"; then
-            ASSIGNEE=$(gh issue view "$ISSUE_URL" --json assignees --jq '.assignees[0].login // "someone"')
-            gh issue comment "$ISSUE_URL" --body "Already claimed by @${ASSIGNEE}. The assignee or a maintainer can \`/unclaim\` to return it."
-            exit 0
-          fi
-          if ! echo "$LABELS" | grep -q "status/queued"; then
-            gh issue comment "$ISSUE_URL" --body "This issue is not in the queue yet — it needs \`status/queued\` before it can be claimed."
-            exit 0
-          fi
-          gh issue edit "$ISSUE_URL" --add-label "status/claimed" --add-assignee "$COMMENTER"
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
-          if [ "$CONFIRMS" -ge 5 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
-          elif [ "$CONFIRMS" -ge 3 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
-          fi
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ✓  queued     —\n  ▶  claimed    @%s\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  /unclaim to return to queue if stuck\n```\n\n---\n\n' "$COMMENTER" "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
-
-      - name: Handle /unclaim
-        if: startsWith(github.event.comment.body, '/unclaim')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          COMMENTER: ${{ github.event.comment.user.login }}
-          HAS_WRITE: ${{ steps.permission.outputs.has_write }}
-        run: |
-          ASSIGNEE=$(gh issue view "$ISSUE_URL" --json assignees --jq '.assignees[0].login // ""')
-          if [ "$COMMENTER" != "$ASSIGNEE" ] && [ "$HAS_WRITE" != "true" ]; then
-            gh issue comment "$ISSUE_URL" --body "Only @${ASSIGNEE} or a maintainer can unclaim this issue."
-            exit 0
-          fi
-          gh issue edit "$ISSUE_URL" --remove-label "status/claimed"
-          [ -n "$ASSIGNEE" ] && gh issue edit "$ISSUE_URL" --remove-assignee "$ASSIGNEE"
-          DATA=$(gh issue view "$ISSUE_URL" --json labels,assignees,body,comments)
-          FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-          CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-          AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-          PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-          REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-          CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
-          if [ "$CONFIRMS" -ge 5 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
-          elif [ "$CONFIRMS" -ge 3 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
-          fi
-          # shellcheck disable=SC2016
-          WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ▶  queued     waiting for a contributor to claim\n  ·  claimed    —\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  comment /claim to take this\n```\n\n---\n\n' "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY")
-          printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-          gh issue edit "$ISSUE_URL" --body-file /tmp/new-body.md
-
-      - name: Handle /wontfix
-        if: startsWith(github.event.comment.body, '/wontfix')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          COMMENTER: ${{ github.event.comment.user.login }}
-          HAS_WRITE: ${{ steps.permission.outputs.has_write }}
           COMMENT_BODY: ${{ github.event.comment.body }}
-        run: |
-          if [ "$HAS_WRITE" != "true" ]; then
-            gh issue comment "$ISSUE_URL" --body "Only maintainers can /wontfix an issue."
-            exit 0
-          fi
-          REASON=$(printf '%s' "$COMMENT_BODY" | sed 's|^/wontfix[[:space:]]*||')
-          if [ -z "$REASON" ]; then
-            REASON="No reason provided."
-          fi
-          gh issue comment "$ISSUE_URL" --body "$(printf 'Closed as wontfix by @%s.\n\n**Reason:** %s\n\nIf you think this decision is wrong, please open a new issue with additional context.' "$COMMENTER" "$REASON")"
-          gh issue close "$ISSUE_URL" --reason "not planned"
-
-      - name: Handle /approve and /lgtm
-        if: >-
-          startsWith(github.event.comment.body, '/approve') ||
-          startsWith(github.event.comment.body, '/lgtm')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
-          COMMENTER: ${{ github.event.comment.user.login }}
-          HAS_WRITE: ${{ steps.permission.outputs.has_write }}
         run: |
-          if [ "$HAS_WRITE" != "true" ]; then
-            gh issue comment "$ISSUE_URL" --body "Only maintainers with write access can \`/approve\`."
+          CONFIRM_TARGET=$(printf '%s\n' "$COMMENT_BODY" | sed -nE 's/^[[:space:]]*[Uu][Jj][Uu][Ss][Tt][[:space:]]+[Cc][Oo][Nn][Ff][Ii][Rr][Mm][[:space:]]+([0-9]+).*$/\1/p' | head -1)
+
+          if [ -z "$CONFIRM_TARGET" ] || [ "$CONFIRM_TARGET" != "$ISSUE_NUMBER" ]; then
+            echo "Ignoring confirm comment for issue '$CONFIRM_TARGET' on issue '$ISSUE_NUMBER'."
             exit 0
           fi
-          gh issue edit "$ISSUE_URL" --add-label "lgtm"
-          gh issue comment "$ISSUE_URL" --body "lgtm — @${COMMENTER} approved."
 
-  stale-claim-sweep:
-    if: github.event_name == 'schedule'
-    needs: ensure-labels
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Unclaim stale issues
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          CUTOFF=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
-          gh issue list --repo "$REPO" \
-            --label "status/claimed" \
-            --json number,url,updatedAt,assignees \
-            --jq ".[] | select(.updatedAt < \"${CUTOFF}\") | .number" \
-          | while read -r NUMBER; do
-              ISSUE_URL="https://github.com/${REPO}/issues/${NUMBER}"
-              ASSIGNEE=$(gh issue view "$NUMBER" --repo "$REPO" --json assignees --jq '.assignees[0].login // ""')
-              gh issue edit "$NUMBER" --repo "$REPO" --remove-label "status/claimed"
-              [ -n "$ASSIGNEE" ] && gh issue edit "$NUMBER" --repo "$REPO" --remove-assignee "$ASSIGNEE"
-              DATA=$(gh issue view "$NUMBER" --repo "$REPO" --json labels,assignees,body,comments)
-              FULL_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
-              CLEAN=$(printf '%s\n' "$FULL_BODY" | awk 'BEGIN{s=0} /^${{ inputs.pipeline_marker }}/{s=1} s && /^---$/{s=0; next} !s{print}')
-              AREA=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("area/")) | ltrimstr("area/")] | first // "—"')
-              PRIORITY=$(printf '%s' "$DATA" | jq -r '[.labels[].name | select(startswith("priority/")) | ltrimstr("priority/")] | first // "—"')
-              REPORT="missing"; printf '%s\n' "$CLEAN" | grep -q 'gist.github.com' && REPORT="attached"
-              CONFIRMS=$(printf '%s' "$DATA" | jq -r '[.comments[].body | select(. != null) | select(test("ujust confirm";"i"))] | length')
-              # shellcheck disable=SC2016
-              WIDGET=$(printf '${{ inputs.pipeline_marker }}\n```\n${{ inputs.brand_name }} ${{ inputs.brand_emoji }}  ·  issue pipeline\n─────────────────────────────────────────────────\n  ✓  filed      report received\n  ✓  approved   signed off by a maintainer\n  ▶  queued     waiting for a contributor to claim\n  ·  claimed    —\n  ·  done       —\n─────────────────────────────────────────────────\n  report:       %-10s  ·  confirms: %s\n  area:         %-10s  ·  priority: %s\n  next action:  comment /claim to take this\n```\n\n---\n\n' "$REPORT" "$CONFIRMS" "$AREA" "$PRIORITY")
-              printf '%s%s' "$WIDGET" "$CLEAN" > /tmp/new-body.md
-              gh issue edit "$NUMBER" --repo "$REPO" --body-file /tmp/new-body.md
-              [ -n "$ASSIGNEE" ] && gh issue comment "$ISSUE_URL" \
-                --body "Stale claim released after 7 days. @${ASSIGNEE} — comment \`/claim\` to resume."
-            done
+          DATA=$(gh issue view "$ISSUE_URL" --json comments)
+          CONFIRMS=$(printf '%s' "$DATA" | jq -r --arg issue_number "$ISSUE_NUMBER" '[.comments[].body // "" | select(test("(?i)^[[:space:]]*ujust confirm[[:space:]]+" + $issue_number + "([[:space:][:punct:]]|$)"))] | length')
 
-          # Nudge stale status/triage issues
-          TRIAGE_CUTOFF=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')
-          gh issue list --repo "$REPO" \
-            --label "status/triage" \
-            --json number,url,updatedAt \
-            --jq ".[] | select(.updatedAt < \"${TRIAGE_CUTOFF}\") | .number" \
-          | while read -r NUMBER; do
-              gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "This issue has been waiting for triage for 14+ days. Maintainers: please review and label with priority and area, or close if not reproducible."
-            done
+          if [ "$CONFIRMS" -ge 5 ]; then
+            gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" --remove-label "priority/p1" 2>/dev/null || true
+          elif [ "$CONFIRMS" -ge 3 ]; then
+            gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
+          fi
