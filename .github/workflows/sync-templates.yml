@@ -22,16 +22,24 @@ jobs:
           - projectbluefin/dakota
           - projectbluefin/knuckle
     steps:
+      - name: Generate mergeraptor app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.MERGERAPTOR_APP_ID }}
+          private-key: ${{ secrets.MERGERAPTOR_PRIVATE_KEY }}
+          repositories: bluefin,bluefin-lts,common,dakota,knuckle
+
       - name: Checkout bonedigger
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: bonedigger
 
       - name: Checkout ${{ matrix.repo }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           repository: ${{ matrix.repo }}
-          token: ${{ secrets.BONEDIGGER_SYNC_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           path: downstream
 
       - name: Copy templates
@@ -41,7 +49,7 @@ jobs:
 
       - name: Open PR if changed
         env:
-          GH_TOKEN: ${{ secrets.BONEDIGGER_SYNC_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ matrix.repo }}
           SHA: ${{ github.sha }}
         run: |
