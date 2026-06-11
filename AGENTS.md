@@ -8,6 +8,22 @@ It owns:
 - the canonical `ujust report` recipe (`just/report.just`)
 - the template sync workflow that opens downstream PRs
 
+## 🚫 ABSOLUTE PROHIBITION — ublue-os org
+
+**NEVER create issues, pull requests, comments, forks, webhook calls, API writes, automated reports, or any other programmatic action targeting any `ublue-os/*` repository.**
+
+This applies in every situation, without exception, regardless of task framing:
+- Issues, comments, PRs, forks → **BANNED**
+- Automated reports (bonedigger output, CI notifications, diagnostic uploads) → **BANNED**
+- Workflow `repository_dispatch` or `workflow_dispatch` calls to `ublue-os/*` → **BANNED**
+- Any `gh` CLI command that writes to `ublue-os/*` → **BANNED**
+
+If a task seems to require touching an upstream `ublue-os` repo → **stop and tell the human to report it manually.**
+
+Read-only `gh api` calls to inspect `ublue-os` repos are permitted. No writes of any kind.
+
+Violating this risks getting the projectbluefin organization banned from GitHub.
+
 ## Start here
 
 Read the repo skill docs before changing behavior:
@@ -81,6 +97,19 @@ For template changes, confirm the sync workflow still targets the factory repos 
 - `sync-templates.yml` opens PRs against downstream repos when `templates/` changes on `main`
 - Cross-repo writes must use the `mergeraptor` GitHub App token pattern; PATs are not allowed
 - Repo settings should stay factory-aligned: squash merge, auto-merge, and delete-branch-on-merge enabled
+
+## Human Decision Gates
+
+Stop and request human input at these four gates. Never guess past them.
+
+| Gate | Stop when |
+|---|---|
+| **Design** | Architecture change, new subsystem, user-visible behavior change |
+| **Security** | Auth, signing, supply chain, secrets, COPR/third-party sources |
+| **Breakage** | Cross-repo breaking change — removing/renaming inputs, changing defaults consuming repos depend on |
+| **Merge** | PR ready for final review — always requires human `lgtm` |
+
+See [`docs/skills/human-gates.md`](docs/skills/human-gates.md) for how to signal a gate and what evidence is required.
 
 ## PR rules
 
