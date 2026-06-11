@@ -32,12 +32,12 @@ jobs:
           repositories: bluefin,bluefin-lts,common,dakota,knuckle
 
       - name: Checkout bonedigger
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           path: bonedigger
 
       - name: Checkout ${{ matrix.repo }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           repository: ${{ matrix.repo }}
           token: ${{ steps.app-token.outputs.token }}
