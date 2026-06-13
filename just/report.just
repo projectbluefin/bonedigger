@@ -19,8 +19,8 @@ report:
 
     cleanup() {
         rm -rf "$REPORT_DIR"
-        [[ -n "$OTEL_CONFIG" ]] && rm -f "$OTEL_CONFIG"
-        [[ -n "$OTEL_STDERR" ]] && rm -f "$OTEL_STDERR"
+        [[ -n "$OTEL_CONFIG" ]] && rm -f "$OTEL_CONFIG" || true
+        [[ -n "$OTEL_STDERR" ]] && rm -f "$OTEL_STDERR" || true
     }
     trap cleanup EXIT
 
