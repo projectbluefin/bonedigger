@@ -8,7 +8,7 @@ Skill index for AI agents working in this repo. Load the skills relevant to your
 |-------|-----------|
 | [`bonedigger-overview`](docs/skills/bonedigger-overview.md) | Starting any work in this repo — architecture, user commands, repo layout, how to adopt bonedigger |
 | [`bonedigger-lifecycle`](docs/skills/bonedigger-lifecycle.md) | Working on the GitHub Actions reporting workflow, confirm priority escalation, or repo adoption |
-| [`bonedigger-ujust`](docs/skills/bonedigger-ujust.md) | Working on `just/report.just`, the OTel deep metrics config, PII scrubbing, or the gist upload flow |
+| [`bonedigger-ujust`](docs/skills/bonedigger-ujust.md) | Working on the `ujust report` recipe in `projectbluefin/common`, the OTel config, PII scrubbing, or the gist upload flow |
 | [`bonedigger-agent-donation`](docs/skills/bonedigger-agent-donation.md) | Working with the agent donation fast-track, `flow/` labels, `flow/agent-donation` issues, or agent-specific labels (`agent/blocked`, `hold`) |
 | [`bonedigger-templates`](docs/skills/bonedigger-templates.md) | Adding, editing, or syncing GitHub issue templates; working on `sync-templates.yml` |
 
@@ -50,8 +50,6 @@ Before changing where a file lives, check which repo's build element installs it
 action.yml                              composite action entrypoint (→ lifecycle.yml)
 .github/workflows/lifecycle.yml         reusable reporting + donation workflow
 .github/workflows/sync-templates.yml    template sync to downstream repos
-just/report.just                        ujust report recipe
-just/ujust-report-config.yaml           OTel config for deep hardware metrics
 templates/                              canonical issue templates
 docs/skills/                            agent skill docs (this directory)
 ```
