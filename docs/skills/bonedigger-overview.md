@@ -71,7 +71,15 @@ If a repo also wants slash commands, queue management, or the issue-body widget,
 
 ## Related repos
 
-- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and owns lifecycle management
-- [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — reference implementation
+- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and owns lifecycle management; image content lives here
+- [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — inherits from common via `common.bst`; only dakota-specific overrides go in `default.just`
 - [ublue-os/bluefin](https://github.com/ublue-os/bluefin) — downstream template recipient
 - [ublue-os/bluefin-lts](https://github.com/ublue-os/bluefin-lts) — downstream template recipient
+
+## Ownership rules
+
+**bonedigger owns CI tooling, not image content.** Just recipes, OTel configs, and system files are image content — they belong in `projectbluefin/common/system_files/`. If a task asks you to add or edit image content here, redirect to common instead.
+
+**Sync workflows are always the wrong answer.** If you find yourself writing a workflow to copy a file from bonedigger to common or dakota, the file is in the wrong repo. Put it where it ships.
+
+**Map the delivery pipeline before moving files.** Check which repo's build element (`*.bst` or container build step) installs the file. That repo owns it. For shared files: common. For dakota-only overrides: dakota's `files/just-overrides/`.

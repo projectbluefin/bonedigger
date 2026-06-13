@@ -140,9 +140,9 @@ Gated on `/usr/share/ublue-os/otel/ujust-report-config.yaml` existing in the ima
 
 1. Show rendered report via `glow` + `gum pager` for local review
 2. Confirm upload with `gum confirm`
-3. If `gh auth status --active` fails → copy to clipboard (wl-copy or xclip), show issue URL
-4. If auth OK → `gh gist create --public` with `summary.md` (+ `metrics.otlp.jsonl` + `logs.otlp.jsonl` if captured)
-5. Offer to `xdg-open` issue URL with gist URL pre-filled as query param
+3. If `gh auth status --active` fails → copy to clipboard (wl-copy or xclip), show issue URL; `journal.txt` path shown separately
+4. If auth OK → `gh gist create --public` with `summary.md` + `journal.txt` (always) + `metrics.otlp.jsonl` + `logs.otlp.jsonl` (if OTel captured)
+5. `gum choose` "File a bug report / Request a feature / Skip" — bugs route to the image's own tracker, feature requests always go to common
 
 ## Environment variable overrides
 
@@ -179,3 +179,16 @@ Temp directory is cleaned up on EXIT trap. Use `trap - EXIT; exit 0` to preserve
 - **Bluefin, Aurora, and Dakota all use GitHub as their backend.** They upload reports as GitHub Gists and file GitHub Issues. They do NOT use external paste services.
 - `BUG_REPORT_URL` in `/etc/os-release` is the canonical source for the distro's issue tracker — no env var needed for this.
 - If adding non-GitHub paste support (e.g. for Fedora, Debian, Ubuntu), use a small hardcoded lookup table keyed on the `BUG_REPORT_URL` domain. Do not add custom `os-release` fields or new env vars for this.
+
+## Where the code lives — do not get this wrong
+
+The recipe and OTel config are **image content**, not CI tooling. They live in `projectbluefin/common`:
+
+| File | Path in common |
+|------|----------------|
+| `ujust report` recipe | `system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just` |
+| OTel collector config | `system_files/bluefin/usr/share/ublue-os/otel/ujust-report-config.yaml` |
+
+`common` ships both files to every image via `common.bst`. Dakota and bluefin inherit them automatically — do **not** add copies to those repos.
+
+**Sync workflows are the wrong answer.** If you find yourself creating a workflow to copy these files from bonedigger to common (or anywhere else), stop: the file is in the wrong repo. Edit it directly in common.
