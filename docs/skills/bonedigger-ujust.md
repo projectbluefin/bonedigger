@@ -1,6 +1,6 @@
 # bonedigger — ujust report tool
 
-Load when working on the client-side diagnostic reporting tool: `just/report.just`, `ujust-report-config.yaml`, or the OTel deep metrics capture.
+Load when working on the client-side diagnostic reporting tool in `projectbluefin/common`: `system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just`, `system_files/bluefin/usr/share/ublue-os/otel/ujust-report-config.yaml`, or the OTel deep metrics capture.
 
 ## Commands
 
@@ -24,6 +24,9 @@ ujust verify 42      # add a verify comment to issue #42 after an update
 | Load average | `/proc/loadavg` |
 | Memory usage | `free -h --si` |
 | Failed systemd units | `systemctl list-units --state=failed` |
+| Current boot kernel errors | `journalctl -b 0 -k -p err..emerg` (attached as `journal.txt`) |
+| Current boot system errors | `journalctl -b 0 -p err..emerg` (attached as `journal.txt`) |
+| Key service logs | `journalctl -b 0 -u <svc>` for gnome-shell, gdm, NetworkManager, bluetooth, rpm-ostree, systemd-coredump (attached as `journal.txt`) |
 | Groups (membership only) | `groups` (username redacted) |
 | GPU info | `nvidia-smi -q` (NVIDIA), DRM sysfs (AMD), `lspci` (all) |
 | Crash / panic detection | Previous boot end state, panic keywords, kernel errors, hardware fingerprint, crash artifact status |
@@ -71,7 +74,7 @@ Applied to every `journalctl -b -1 -k` excerpt. **Order matters** — MAC must r
 
 ## Crash / Panic Detection section
 
-Added to `just/report.just`. All data sourced from `journalctl -b -1` (previous boot). All kernel excerpts pass through `scrub_kernel_log()` before landing in `summary.md`.
+Implemented in `projectbluefin/common/system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just`. All data sourced from `journalctl -b -1` (previous boot). All kernel excerpts pass through `scrub_kernel_log()` before landing in `summary.md`.
 
 ### Boot end-state classifier (4 buckets — never assume)
 
@@ -117,6 +120,8 @@ Gated on `/usr/share/ublue-os/otel/ujust-report-config.yaml` existing in the ima
 
 - `metrics.otlp.jsonl` — CPU, memory, disk, filesystem, network, paging, processes, Podman containers
 - `logs.otlp.jsonl` — journald service errors/warnings (gnome-shell, gdm, bluetooth, NetworkManager, systemd-coredump) + kernel dmesg (warning+)
+
+The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/usr/share/ublue-os/otel/ujust-report-config.yaml`.
 
 **OTel collector config highlights:**
 - `memory_limiter` first (512 MiB limit) — OTel best practice
@@ -168,6 +173,7 @@ Gated on `/usr/share/ublue-os/otel/ujust-report-config.yaml` existing in the ima
 ```
 $XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/
   summary.md           — Markdown report (always)
+  journal.txt          — Current boot system/service logs (always)
   metrics.otlp.jsonl   — OTel host/container metrics (if OTel captured)
   logs.otlp.jsonl      — OTel journald + kernel logs (if OTel captured)
 ```

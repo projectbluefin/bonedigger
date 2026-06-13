@@ -31,8 +31,6 @@ ujust verify 42      # verify issue #42 is fixed after an update
 
 | Path | Purpose |
 |------|---------|
-| `just/report.just` | canonical `ujust report` recipe (shipped via projectbluefin/common) |
-| `just/ujust-report-config.yaml` | OpenTelemetry config for deep hardware metrics |
 | `templates/` | canonical GitHub issue templates (synced to all org repos) |
 | `.github/workflows/lifecycle.yml` | reusable reporting workflow |
 | `.github/workflows/sync-templates.yml` | auto-syncs templates to downstream repos |
