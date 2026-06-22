@@ -12,6 +12,9 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-24.04
+    concurrency:
+      group: sync-templates-${{ matrix.repo }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
