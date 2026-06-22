@@ -2,6 +2,36 @@
 
 Skill index for AI agents working in this repo. Load the skills relevant to your task; skills are in [`docs/skills/`](docs/skills/).
 
+## STOP — before you write a single line of code
+
+1. Read `bonedigger-overview.md` (architecture, repo layout, what bonedigger actually is).
+2. Read every skill doc that matches your task area (see Skills table below). No skimming — the answers to common mistakes are in those docs.
+3. Identify the exact scope of your change. If it touches more than one logical area, stop and split the work.
+4. Do not proceed until you can answer: what files change, why, and how will you verify the result?
+
+## Verification — you are not done until you verify
+
+**Done means verified, not "I believe this should work."**
+
+| Change type | Required verification |
+|-------------|----------------------|
+| Any workflow change | `actionlint .github/workflows/*.yml` — inspect output, fix all errors |
+| Any file change | `pre-commit run --all-files` — must pass clean |
+| Any commit pushed | `gh run list --repo projectbluefin/bonedigger --limit 5` — wait for runs to complete, confirm green |
+| Issue/PR body edit | Re-read the issue/PR body after the edit and confirm the widget or content is correct |
+| Template change | Confirm `sync-templates.yml` still targets all 5 downstream repos after your edit |
+
+Never report success before running these checks and reading the output.
+
+## Anti-patterns — these are mistakes, not shortcuts
+
+- **Do not claim done without verifying.** "I've updated the file" is not done. Run the checks. Read the output.
+- **Do not post extra comments on issues or PRs.** The pipeline widget is edited in-place. Slash commands are processed by the workflow. You do not need to add comments to explain your actions.
+- **Do not mix unrelated changes in one branch.** One branch = one logical fix. If you find something else broken, file a separate issue.
+- **Do not skip reading the skill docs.** The docs exist because agents made these mistakes. The answers are already there.
+- **Do not guess at workflow patterns.** Auth uses mergeraptor App tokens, not PATs. PRs target `main`. Labels have exact names. Check the docs.
+- **Do not push with `--no-verify`.** Ever.
+
 ## Skills
 
 | Skill | Load when… |
