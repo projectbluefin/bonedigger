@@ -2,6 +2,8 @@ name: bonedigger lifecycle
 
 # bonedigger now scopes to ujust-report intake, confirm-based priority escalation,
 # and the bonedigger-specific agent donation fast-track.
+# During the clanker-queue migration, the workflow dual-writes the legacy labels
+# and the new clanker-queue/* namespace so callers can move without losing state.
 
 on:
   workflow_call:
@@ -78,6 +80,7 @@ jobs:
           ARGS=(
             --add-label "status/approved"
             --add-label "status/queued"
+            --add-label "clanker-queue/ready"
             --add-label "flow/agent-donation"
           )
 
@@ -86,6 +89,16 @@ jobs:
           fi
 
           gh issue edit "$ISSUE_URL" "${ARGS[@]}"
+
+      - name: Seed clanker queue triage labels for ujust report issues
+        if: steps.detect.outputs.workflow != 'agent_donation' && steps.detect.outputs.is_ujust_report == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          gh issue edit "$ISSUE_URL" \
+            --add-label "status/triage" \
+            --add-label "clanker-queue/triage"
 
       - name: Sync priority labels for ujust report issues
         if: steps.detect.outputs.workflow != 'agent_donation' && steps.detect.outputs.is_ujust_report == 'true'
@@ -98,10 +111,16 @@ jobs:
           CONFIRMS=$(printf '%s' "$DATA" | jq -r --arg issue_number "$ISSUE_NUMBER" '[.comments[].body // "" | select(test("(?i)^[[:space:]]*ujust confirm[[:space:]]+" + $issue_number + "([[:space:][:punct:]]|$)"))] | length')
 
           if [ "$CONFIRMS" -ge 5 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
-            gh issue edit "$ISSUE_URL" --remove-label "priority/p1" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" \
+              --add-label "priority/p0" \
+              --add-label "clanker-queue/p0" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" \
+              --remove-label "priority/p1" \
+              --remove-label "clanker-queue/p1" 2>/dev/null || true
           elif [ "$CONFIRMS" -ge 3 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" \
+              --add-label "priority/p1" \
+              --add-label "clanker-queue/p1" 2>/dev/null || true
           fi
 
   on-issue-comment:
@@ -132,8 +151,14 @@ jobs:
           CONFIRMS=$(printf '%s' "$DATA" | jq -r --arg issue_number "$ISSUE_NUMBER" '[.comments[].body // "" | select(test("(?i)^[[:space:]]*ujust confirm[[:space:]]+" + $issue_number + "([[:space:][:punct:]]|$)"))] | length')
 
           if [ "$CONFIRMS" -ge 5 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p0" 2>/dev/null || true
-            gh issue edit "$ISSUE_URL" --remove-label "priority/p1" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" \
+              --add-label "priority/p0" \
+              --add-label "clanker-queue/p0" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" \
+              --remove-label "priority/p1" \
+              --remove-label "clanker-queue/p1" 2>/dev/null || true
           elif [ "$CONFIRMS" -ge 3 ]; then
-            gh issue edit "$ISSUE_URL" --add-label "priority/p1" 2>/dev/null || true
+            gh issue edit "$ISSUE_URL" \
+              --add-label "priority/p1" \
+              --add-label "clanker-queue/p1" 2>/dev/null || true
           fi

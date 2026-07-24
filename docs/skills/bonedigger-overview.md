@@ -9,11 +9,11 @@ USER'S MACHINE                    GITHUB
 ─────────────────                 ─────────────────────────────────────────
 ujust report                      bonedigger lifecycle workflow
   └─ collects diagnostics           └─ detect `ujust report` issue bodies
-  └─ PII scrub on-device            └─ sync confirm-based priority labels
+  └─ PII scrub on-device            └─ sync confirm-based priority + clanker labels
   └─ user reviews locally           └─ fast-track agent donation issues
   └─ uploads to user's gist
-  └─ opens issue w/ gist link     common lifecycle workflow
-                                   └─ slash commands, queue state, widget
+  └─ opens issue w/ gist link     bonedigger label sync workflow
+                                   └─ propagates labels.json to factory repos
 ujust confirm <issue#>            └─ bonedigger re-counts confirms
                                      and escalates priority labels
 ```
@@ -33,6 +33,7 @@ ujust verify 42      # verify issue #42 is fixed after an update
 |------|---------|
 | `templates/` | canonical GitHub issue templates (synced to all org repos) |
 | `.github/workflows/lifecycle.yml` | reusable reporting workflow |
+| `.github/workflows/sync-labels.yml` | canonical label sync to factory repos |
 | `.github/workflows/sync-templates.yml` | auto-syncs templates to downstream repos |
 | `action.yml` | composite action entrypoint (points to reusable workflow) |
 
@@ -59,7 +60,7 @@ jobs:
 
 The legacy `brand_name`, `brand_emoji`, and `pipeline_marker` inputs are still accepted for backward compatibility, but the slim workflow ignores them.
 
-If a repo also wants slash commands, queue management, or the issue-body widget, pair bonedigger with `projectbluefin/common/.github/workflows/lifecycle.yml`.
+If a repo also wants slash commands, queue management, or the issue-body widget, pair bonedigger with the downstream lifecycle workflow that consumes the same labels. During the clanker-queue rollout that workflow remains the compatibility layer.
 
 ## Privacy model
 
@@ -69,7 +70,7 @@ If a repo also wants slash commands, queue management, or the issue-body widget,
 
 ## Related repos
 
-- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and owns lifecycle management; image content lives here
+- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report`; image content lives here
 - [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — inherits from common via `common.bst`; only dakota-specific overrides go in `default.just`
 - [ublue-os/bluefin](https://github.com/ublue-os/bluefin) — downstream template recipient
 - [ublue-os/bluefin-lts](https://github.com/ublue-os/bluefin-lts) — downstream template recipient
