@@ -1,5 +1,5 @@
 name: 'bonedigger'
-description: 'ujust report intake, confirm-driven priority escalation, and agent donation fast-track for Project Bluefin'
+description: 'ujust report intake, confirm-driven priority escalation, clanker-queue label sync, and agent donation fast-track for Project Bluefin'
 author: 'Project Bluefin'
 
 inputs:
@@ -23,5 +23,5 @@ runs:
       shell: bash
       run: |
         echo "Use bonedigger via: uses: projectbluefin/bonedigger/.github/workflows/lifecycle.yml@main"
-        echo "bonedigger now scopes to ujust report intake, confirm-based priority escalation, and agent donation fast-track."
+        echo "bonedigger now scopes to ujust report intake, confirm-based priority escalation, clanker-queue label sync, and agent donation fast-track."
         echo "See README.md for usage."

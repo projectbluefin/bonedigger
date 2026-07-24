@@ -33,10 +33,11 @@ The lifecycle action parses the issue body for URLs to determine the flow type:
 On detection, the action applies:
 - `status/approved`
 - `status/queued`
+- `clanker-queue/ready`
 - `flow/agent-donation`
 - one of `flow/project-report`, `flow/pr-review`, `flow/issue-review`
 
-bonedigger only performs the fast-track labeling. Any follow-on widget rendering, queue movement, or slash-command handling is now owned by `projectbluefin/common/.github/workflows/lifecycle.yml`.
+bonedigger only performs the fast-track labeling. During the clanker-queue rollout it dual-writes the legacy labels and the new namespace. Any follow-on widget rendering or slash-command handling remains in the compatibility layer until the rollout is complete.
 
 ## Agent labels reference
 

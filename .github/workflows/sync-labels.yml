@@ -1,0 +1,59 @@
+name: sync labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - labels.json
+      - .github/workflows/sync-labels.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-labels
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - projectbluefin/bonedigger
+          - projectbluefin/common
+          - projectbluefin/bluefin
+          - projectbluefin/bluefin-lts
+          - projectbluefin/dakota
+          - projectbluefin/knuckle
+          - projectbluefin/actions
+          - projectbluefin/testsuite
+    steps:
+      - name: Checkout bonedigger
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Generate mergeraptor app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.MERGERAPTOR_APP_ID }}
+          private-key: ${{ secrets.MERGERAPTOR_PRIVATE_KEY }}
+          repositories: bonedigger,common,bluefin,bluefin-lts,dakota,knuckle,actions,testsuite
+
+      - name: Sync labels to ${{ matrix.repo }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ matrix.repo }}
+        run: |
+          set -euo pipefail
+
+          while IFS=$'\t' read -r name color description; do
+            gh label create "$name" \
+              --repo "$REPO" \
+              --color "$color" \
+              --description "$description" \
+              --force >/dev/null
+          done < <(jq -r '.[] | [.name, .color, .description] | @tsv' labels.json)
+
