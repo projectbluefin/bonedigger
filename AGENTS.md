@@ -1,4 +1,4 @@
-# agents.md — bonedigger
+# AGENTS.md — bonedigger
 
 Skill index for AI agents working in this repo. Load the skills relevant to your task; skills are in [`docs/skills/`](docs/skills/).
 
