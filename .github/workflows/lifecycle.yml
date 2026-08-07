@@ -46,6 +46,7 @@ jobs:
           WORKFLOW="standard"
           FLOW_LABEL=""
           IS_UJUST_REPORT=false
+          QUEUE_LABEL=""
 
           if printf '%s\n' "$ISSUE_BODY" | grep -Fq "$DONATION_WORKFLOW_MARKER"; then
             WORKFLOW="agent_donation"
@@ -57,15 +58,30 @@ jobs:
             fi
           fi
 
+          QUEUE_PREFERENCE=$(printf '%s\n' "$ISSUE_BODY" | sed -nE \
+            's/^<!-- bonedigger-queue-preference: (3-clanker-queue|3-human-queue|none) -->$/\1/p' \
+            | head -1)
+
           if printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
-            || printf '%s\n' "$ISSUE_BODY" | grep -Eqi '^### ujust report gist url$'; then
+            || printf '%s\n' "$ISSUE_BODY" | grep -Eqi "^### ujust report gist url$" \
+            || printf '%s\n' "$ISSUE_BODY" | grep -Fq "_Created with \`ujust report\`._" \
+            || [ -n "$QUEUE_PREFERENCE" ]; then
             IS_UJUST_REPORT=true
+          fi
+
+          if ! printf '%s' "$DATA" | jq -e \
+            '.labels[]? | select(.name == "3-clanker-queue" or .name == "3-human-queue")' \
+            >/dev/null; then
+            case "$QUEUE_PREFERENCE" in
+              3-clanker-queue|3-human-queue) QUEUE_LABEL="$QUEUE_PREFERENCE" ;;
+            esac
           fi
 
           {
             echo "workflow=$WORKFLOW"
             echo "flow_label=$FLOW_LABEL"
             echo "is_ujust_report=$IS_UJUST_REPORT"
+            echo "queue_label=$QUEUE_LABEL"
           } >> "$GITHUB_OUTPUT"
 
       - name: Fast-track donated agent work
@@ -86,6 +102,17 @@ jobs:
           fi
 
           gh issue edit "$ISSUE_URL" "${ARGS[@]}"
+
+      - name: Apply ujust report queue preference
+        if: >-
+          steps.detect.outputs.workflow != 'agent_donation' &&
+          steps.detect.outputs.is_ujust_report == 'true' &&
+          steps.detect.outputs.queue_label != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          QUEUE_LABEL: ${{ steps.detect.outputs.queue_label }}
+        run: gh issue edit "$ISSUE_URL" --add-label "$QUEUE_LABEL"
 
       - name: Sync priority labels for ujust report issues
         if: steps.detect.outputs.workflow != 'agent_donation' && steps.detect.outputs.is_ujust_report == 'true'

@@ -8,6 +8,7 @@ bonedigger no longer owns the full issue lifecycle state machine.
 
 **bonedigger keeps:**
 - `ujust report` issue detection on `issues.opened`
+- queue-preference recovery for reporters without label permissions
 - confirm-count priority escalation on `issue_comment.created`
 - agent donation fast-track label application on `issues.opened`
 
@@ -24,6 +25,24 @@ Triggered on issue open for `ujust report` issues and on matching confirm commen
 - `5+` matching `ujust confirm <issue#>` comments → add `priority/p0`
 
 Matching is scoped to the current issue number so a mistyped confirm comment on the wrong issue is ignored.
+
+## Queue preferences
+
+The Common client writes one validated hidden marker into every report body:
+
+```text
+<!-- bonedigger-queue-preference: 3-clanker-queue -->
+<!-- bonedigger-queue-preference: 3-human-queue -->
+<!-- bonedigger-queue-preference: none -->
+```
+
+GitHub silently drops labels requested during issue creation when the reporter
+does not have repository triage access. On `issues.opened`, Bonedigger treats
+the marker and the visible ``_Created with `ujust report`._`` signature as intake
+evidence. If neither queue label is already present, it applies the requested
+human or Clanker label with the workflow's `issues: write` permission. `none`
+leaves the issue for normal triage. An existing queue label wins over the body
+marker so automation does not overwrite a maintainer decision.
 
 ## Agent donation fast-track
 
