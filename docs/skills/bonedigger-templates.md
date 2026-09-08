@@ -35,7 +35,7 @@ metadata:
    1. check out bonedigger and the downstream repo
    2. copy `templates/*.yml` into `downstream/.github/ISSUE_TEMPLATE/`
    3. commit and push `bonedigger/sync-templates-<sha8>`
-   4. open the downstream PR
+   4. open the downstream PR against `main` (`testing` for Dakota)
 5. Do **not** set `cancel-in-progress: true` for the per-repo concurrency group. The workflow pushes the branch before opening the PR, so cancellation between those steps can orphan a remote branch with no PR.
 6. Keep external GitHub Actions pinned to full SHAs with inline version comments. Internal `projectbluefin/actions/*` and `projectbluefin/bonedigger/*` refs may stay on version tags, including subpath refs such as `projectbluefin/actions/sync@v3`.
 7. Validate with:

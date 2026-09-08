@@ -72,7 +72,7 @@ jobs:
           ')
 
           if printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
-            || printf '%s\n' "$REPORT_GIST_URL" | grep -Eq '^https://gist\.github\.com/[[:alnum:]_-]+/[[:xdigit:]]+/?$'; then
+            || printf '%s\n' "$REPORT_GIST_URL" | grep -Eq '^https://gist\.github\.com/[[:alnum:]]([[:alnum:]-]{0,37}[[:alnum:]])?/[[:xdigit:]]+/?$'; then
             IS_UJUST_REPORT=true
           fi
 
@@ -162,7 +162,23 @@ jobs:
             exit 0
           fi
 
-          DATA=$(gh issue view "$ISSUE_URL" --json comments)
+          DATA=$(gh issue view "$ISSUE_URL" --json body,comments,labels)
+          ISSUE_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
+          REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
+            tolower($0) == "### ujust report gist url" {
+              getline
+              getline
+              print
+              exit
+            }
+          ')
+
+          if ! printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
+            && ! printf '%s\n' "$REPORT_GIST_URL" | grep -Eq '^https://gist\.github\.com/[[:alnum:]]([[:alnum:]-]{0,37}[[:alnum:]])?/[[:xdigit:]]+/?$'; then
+            echo "Ignoring confirm comment for issue without a ujust report."
+            exit 0
+          fi
+
           CONFIRMS=$(printf '%s' "$DATA" | jq -r --arg issue_number "$ISSUE_NUMBER" '[.comments[].body // "" | select(test("(?i)^[[:space:]]*ujust confirm[[:space:]]+" + $issue_number + "([[:space:][:punct:]]|$)"))] | length')
 
           if [ "$CONFIRMS" -ge 5 ]; then
