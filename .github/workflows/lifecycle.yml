@@ -65,6 +65,7 @@ jobs:
           REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
             tolower($0) == "### ujust report gist url" {
               getline
+              if ($0 != "") exit
               getline
               print
               exit
@@ -72,7 +73,7 @@ jobs:
           ')
 
           if printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
-            || printf '%s\n' "$REPORT_GIST_URL" | grep -Eq '^https://gist\.github\.com/[[:alnum:]]([[:alnum:]-]{0,37}[[:alnum:]])?/[[:xdigit:]]+/?$'; then
+            || printf '%s\n' "$REPORT_GIST_URL" | LC_ALL=C grep -Eq '^https://gist\.github\.com/[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[[:xdigit:]]+/?$'; then
             IS_UJUST_REPORT=true
           fi
 
@@ -167,6 +168,7 @@ jobs:
           REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
             tolower($0) == "### ujust report gist url" {
               getline
+              if ($0 != "") exit
               getline
               print
               exit
@@ -174,7 +176,7 @@ jobs:
           ')
 
           if ! printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
-            && ! printf '%s\n' "$REPORT_GIST_URL" | grep -Eq '^https://gist\.github\.com/[[:alnum:]]([[:alnum:]-]{0,37}[[:alnum:]])?/[[:xdigit:]]+/?$'; then
+            && ! printf '%s\n' "$REPORT_GIST_URL" | LC_ALL=C grep -Eq '^https://gist\.github\.com/[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[[:xdigit:]]+/?$'; then
             echo "Ignoring confirm comment for issue without a ujust report."
             exit 0
           fi

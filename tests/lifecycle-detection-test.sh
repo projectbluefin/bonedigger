@@ -89,6 +89,22 @@ if [ "$actual" != "false" ]; then
   exit 1
 fi
 
+malformed_field_layout='{"body":"### ujust report gist URL\nnot the rendered field value\nhttps://gist.github.com/projectbluefin/0123456789abcdef\n\n### What happened?\n\nThe screen went blank.","labels":[]}'
+actual=$(detect_report "$malformed_field_layout")
+
+if [ "$actual" != "false" ]; then
+  printf 'expected a report link outside its field value to be rejected, got %s\n' "$actual" >&2
+  exit 1
+fi
+
+non_ascii_gist_owner='{"body":"### ujust report gist URL\n\nhttps://gist.github.com/\u00e9/0123456789abcdef\n\n### What happened?\n\nThe screen went blank.","labels":[]}'
+actual=$(detect_report "$non_ascii_gist_owner")
+
+if [ "$actual" != "false" ]; then
+  printf 'expected a report form with a non-ASCII Gist owner to be rejected, got %s\n' "$actual" >&2
+  exit 1
+fi
+
 source_labeled_issue='{"body":"### What happened?\n\nThe screen went blank.","labels":[{"name":"source:ujust-report"}]}'
 actual=$(detect_report "$source_labeled_issue")
 
