@@ -14,7 +14,7 @@ body:
       label: "ujust report gist URL"
       placeholder: "https://gist.github.com/..."
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: what-happened

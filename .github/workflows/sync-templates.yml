@@ -62,6 +62,10 @@ jobs:
             exit 0
           fi
           BRANCH="bonedigger/sync-templates-${SHA::8}"
+          BASE="main"
+          if [ "$REPO" = "projectbluefin/dakota" ]; then
+            BASE="testing"
+          fi
           git config user.name "bonedigger"
           git config user.email "bonedigger@projectbluefin.github.io"
           git checkout -b "$BRANCH"
@@ -91,11 +95,11 @@ jobs:
             --title "chore(templates): sync issue templates from bonedigger" \
             --body "$PR_BODY_WITH_LABEL" \
             --head "$BRANCH" \
-            --base main \
+            --base "$BASE" \
             --label "kind/automation" 2>/dev/null || \
           gh pr create \
             --repo "$REPO" \
             --title "chore(templates): sync issue templates from bonedigger" \
             --body "$PR_BODY" \
             --head "$BRANCH" \
-            --base main
+            --base "$BASE"

@@ -62,10 +62,23 @@ jobs:
             's/^<!-- bonedigger-queue-preference: (3-clanker-queue|3-human-queue|none) -->$/\1/p' \
             | head -1)
 
+          REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
+            tolower($0) == "### ujust report gist url" {
+              getline
+              if ($0 != "") exit
+              getline
+              print
+              exit
+            }
+          ')
+          HAS_REPORT_GIST=false
+          if printf '%s\n' "$REPORT_GIST_URL" | LC_ALL=C grep -Eq '^https://gist\.github\.com/[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[[:xdigit:]]+/?$' \
+            && ! printf '%s\n' "$REPORT_GIST_URL" | LC_ALL=C grep -Fq -- '--'; then
+            HAS_REPORT_GIST=true
+          fi
+
           if printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
-            || printf '%s\n' "$ISSUE_BODY" | grep -Eqi "^### ujust report gist url$" \
-            || printf '%s\n' "$ISSUE_BODY" | grep -Fq "_Created with \`ujust report\`._" \
-            || [ -n "$QUEUE_PREFERENCE" ]; then
+            || [ "$HAS_REPORT_GIST" = true ]; then
             IS_UJUST_REPORT=true
           fi
 
@@ -155,7 +168,29 @@ jobs:
             exit 0
           fi
 
-          DATA=$(gh issue view "$ISSUE_URL" --json comments)
+          DATA=$(gh issue view "$ISSUE_URL" --json body,comments,labels)
+          ISSUE_BODY=$(printf '%s' "$DATA" | jq -r '.body // ""')
+          REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
+            tolower($0) == "### ujust report gist url" {
+              getline
+              if ($0 != "") exit
+              getline
+              print
+              exit
+            }
+          ')
+          HAS_REPORT_GIST=false
+          if printf '%s\n' "$REPORT_GIST_URL" | LC_ALL=C grep -Eq '^https://gist\.github\.com/[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[[:xdigit:]]+/?$' \
+            && ! printf '%s\n' "$REPORT_GIST_URL" | LC_ALL=C grep -Fq -- '--'; then
+            HAS_REPORT_GIST=true
+          fi
+
+          if ! printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
+            && [ "$HAS_REPORT_GIST" != true ]; then
+            echo "Ignoring confirm comment for issue without a ujust report."
+            exit 0
+          fi
+
           CONFIRMS=$(printf '%s' "$DATA" | jq -r --arg issue_number "$ISSUE_NUMBER" '[.comments[].body // "" | select(test("(?i)^[[:space:]]*ujust confirm[[:space:]]+" + $issue_number + "([[:space:][:punct:]]|$)"))] | length')
 
           if [ "$CONFIRMS" -ge 5 ]; then

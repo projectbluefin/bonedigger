@@ -38,7 +38,7 @@ The Common client writes one validated hidden marker into every report body:
 
 GitHub silently drops labels requested during issue creation when the reporter
 does not have repository triage access. On `issues.opened`, Bonedigger treats
-the marker and the visible ``_Created with `ujust report`._`` signature as intake
+a valid `ujust report` Gist URL or the `source:ujust-report` label as intake
 evidence. If neither queue label is already present, it applies the requested
 human or Clanker label with the workflow's `issues: write` permission. `none`
 leaves the issue for normal triage. An existing queue label wins over the body
