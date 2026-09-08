@@ -13,6 +13,7 @@ awk '
 ' "$workflow" >"$tmp_dir/detect.sh"
 
 mkdir "$tmp_dir/bin"
+system_awk=$(command -v awk)
 cat >"$tmp_dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
@@ -23,6 +24,12 @@ fi
 exit 1
 EOF
 chmod +x "$tmp_dir/bin/gh"
+
+cat >"$tmp_dir/bin/awk" <<EOF
+#!/usr/bin/env bash
+exec "$system_awk" --posix "\$@"
+EOF
+chmod +x "$tmp_dir/bin/awk"
 
 detect_report() {
   : >"$tmp_dir/output"

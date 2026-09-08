@@ -63,8 +63,7 @@ jobs:
             | head -1)
 
           REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
-            BEGIN { IGNORECASE = 1 }
-            /^### ujust report gist url$/ {
+            tolower($0) == "### ujust report gist url" {
               getline
               getline
               print
