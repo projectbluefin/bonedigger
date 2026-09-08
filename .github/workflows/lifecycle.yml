@@ -62,10 +62,18 @@ jobs:
             's/^<!-- bonedigger-queue-preference: (3-clanker-queue|3-human-queue|none) -->$/\1/p' \
             | head -1)
 
+          REPORT_GIST_URL=$(printf '%s\n' "$ISSUE_BODY" | awk '
+            BEGIN { IGNORECASE = 1 }
+            /^### ujust report gist url$/ {
+              getline
+              getline
+              print
+              exit
+            }
+          ')
+
           if printf '%s' "$DATA" | jq -e '.labels[]? | select(.name == "source:ujust-report")' >/dev/null \
-            || printf '%s\n' "$ISSUE_BODY" | grep -Eqi "^### ujust report gist url$" \
-            || printf '%s\n' "$ISSUE_BODY" | grep -Fq "_Created with \`ujust report\`._" \
-            || [ -n "$QUEUE_PREFERENCE" ]; then
+            || printf '%s\n' "$REPORT_GIST_URL" | grep -Eq '^https://gist\.github\.com/[[:alnum:]_-]+/[[:xdigit:]]+/?$'; then
             IS_UJUST_REPORT=true
           fi
 

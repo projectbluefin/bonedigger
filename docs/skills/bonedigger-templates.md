@@ -53,7 +53,7 @@ metadata:
 
 ### bug-report.yml structure
 
-- **ujust report gist URL** (optional input) — pre-fills from `ujust report` query param `?report-link=<encoded-url>`
+- **ujust report gist URL** (required input) — pre-fills from `ujust report` query param `?report-link=<encoded-url>`
 - **What happened?** (required textarea) — what was seen vs. expected, hardware model, exact error
 - **Extra context** (optional textarea) — upstream bug links, regression narrowing
 
