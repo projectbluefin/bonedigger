@@ -105,6 +105,14 @@ if [ "$actual" != "false" ]; then
   exit 1
 fi
 
+consecutive_hyphen_owner='{"body":"### ujust report gist URL\n\nhttps://gist.github.com/foo--bar/0123456789abcdef\n\n### What happened?\n\nThe screen went blank.","labels":[]}'
+actual=$(detect_report "$consecutive_hyphen_owner")
+
+if [ "$actual" != "false" ]; then
+  printf 'expected a report form with consecutive Gist owner hyphens to be rejected, got %s\n' "$actual" >&2
+  exit 1
+fi
+
 source_labeled_issue='{"body":"### What happened?\n\nThe screen went blank.","labels":[{"name":"source:ujust-report"}]}'
 actual=$(detect_report "$source_labeled_issue")
 
