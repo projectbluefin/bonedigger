@@ -29,8 +29,11 @@ jobs:
       - name: Install actionlint
         env:
           ACTIONLINT_VERSION: 1.7.7
+          # From actionlint_1.7.7_checksums.txt on the v1.7.7 release
+          ACTIONLINT_SHA256: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
         run: |
           curl -sSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" -o actionlint.tar.gz
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum -c -
           tar -xzf actionlint.tar.gz actionlint
           sudo install -m 0755 actionlint /usr/local/bin/actionlint
           rm -f actionlint actionlint.tar.gz
