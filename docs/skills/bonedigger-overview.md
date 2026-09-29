@@ -20,8 +20,6 @@ ujust report                      GitHub Issues + Hive
 Run on a Bluefin machine:
 ```bash
 ujust report         # collect diagnostics, upload to gist, open issue
-ujust confirm 42     # confirm you hit issue #42 too
-ujust verify 42      # verify issue #42 is fixed after an update
 ```
 
 ## Repository structure
@@ -31,9 +29,9 @@ ujust verify 42      # verify issue #42 is fixed after an update
 | `templates/` | canonical GitHub issue templates (synced to all org repos) |
 | `.github/workflows/sync-templates.yml` | auto-syncs templates to downstream repos |
 | `docs/skills/` | agent skill docs |
+
 ## Template sync
 
-Issue templates are maintained in `templates/` and automatically synced to:
 - `projectbluefin/bluefin`
 - `projectbluefin/bluefin-lts`
 - `projectbluefin/common`
@@ -42,19 +40,20 @@ Issue templates are maintained in `templates/` and automatically synced to:
 ## Privacy model
 
 - All PII scrubbing happens on the user's machine before any upload
-- Diagnostic gists belong to the user — bonedigger only reads them, never creates its own
+- Diagnostic gists belong to the user under their own GitHub account
 - `machine-id` is hashed to an 8-char anonymous device ID — not reversible
 
 ## Related repos
 
-- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and owns lifecycle management; image content lives here
+- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and system files; image content lives here
 - [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — inherits from common via `common.bst`; only dakota-specific overrides go in `default.just`
-- [ublue-os/bluefin](https://github.com/ublue-os/bluefin) — downstream template recipient
-- [ublue-os/bluefin-lts](https://github.com/ublue-os/bluefin-lts) — downstream template recipient
+- [projectbluefin/bluefin](https://github.com/projectbluefin/bluefin) — downstream template recipient
+- [projectbluefin/bluefin-lts](https://github.com/projectbluefin/bluefin-lts) — downstream template recipient
+- [projectbluefin/knuckle](https://github.com/projectbluefin/knuckle) — downstream template recipient
 
 ## Ownership rules
 
-**bonedigger owns CI tooling, not image content.** Just recipes, OTel configs, and system files are image content — they belong in `projectbluefin/common/system_files/`. If a task asks you to add or edit image content here, redirect to common instead.
+**bonedigger owns the reporting frameworks, intake templates, and template sync.** Just recipes, OTel configs, and system binaries are image content packaged and shipped via `projectbluefin/common`. Bonedigger maintains the specifications, documentation, and intake contracts.
 
 **Sync workflows are always the wrong answer.** If you find yourself writing a workflow to copy a file from bonedigger to common or dakota, the file is in the wrong repo. Put it where it ships.
 

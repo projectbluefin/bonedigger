@@ -37,20 +37,23 @@ Never report success before running these checks and reading the output.
 | Skill | Load when… |
 |-------|-----------|
 | [`bonedigger-overview`](docs/skills/bonedigger-overview.md) | Starting any work in this repo — architecture, user commands, repo layout |
-| [`bonedigger-ujust`](docs/skills/bonedigger-ujust.md) | Working on the `ujust report` recipe in `projectbluefin/common`, the OTel config, PII scrubbing, or the gist upload flow |
+| [`bonedigger-ujust`](docs/skills/bonedigger-ujust.md) | Working on the `ujust report` diagnostics framework, PII scrubbing, OTel specs, or gist intake |
 | [`bonedigger-templates`](docs/skills/bonedigger-templates.md) | Adding, editing, or syncing GitHub issue templates; working on `sync-templates.yml` |
+
 ## Quick orientation
 
-- **Issue lifecycle management is Hive-managed.** Bonedigger does not own an issue lifecycle workflow.
+- **bonedigger owns the `ujust report` frameworks** for users to report issues, client-side diagnostics specifications, and canonical intake templates.
+- **Issue lifecycle is Hive-managed.** Issue state machines, triage, and queue management belong to Hive.
 - **GitHub Issues is the only backend.** No database, no central server.
 - **Templates are mastered here** and synced to `common`, `dakota`, `bluefin`, `bluefin-lts`, and `knuckle` automatically.
 
 ## Ownership rules — read before making changes
 
-**bonedigger owns template distribution and report client definitions.**
-bonedigger's scope: `templates/`, `sync-templates.yml`, skill docs.
-**Image content does NOT belong here.**
-Just recipes, OTel configs, and system files are image content — they ship to users through `projectbluefin/common`. If a task involves editing a just recipe or a system config file, the work belongs in common, not bonedigger.
+**bonedigger owns the reporting frameworks, intake templates, and template sync.**
+bonedigger's scope: `templates/`, `sync-templates.yml`, skill docs, and `ujust report` diagnostic specifications.
+
+**Image content ships through `common`.**
+Just recipes, OTel configs, and system binaries are packaged and delivered to users through `projectbluefin/common`. Bonedigger maintains the specifications, documentation, and intake contracts.
 
 **Sync workflows between repos are always the wrong answer for image content.**
 If you find yourself writing a workflow to copy a file from bonedigger to common (or to dakota), stop — the file is in the wrong place. Put it directly in the repo that ships it.

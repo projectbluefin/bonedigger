@@ -6,8 +6,6 @@ Load when working on the client-side diagnostic reporting tool in `projectbluefi
 
 ```bash
 ujust report         # collect diagnostics, review locally, upload to gist, open issue
-ujust confirm 42     # add a confirm comment to issue #42
-ujust verify 42      # add a verify comment to issue #42 after an update
 ```
 
 ## What `ujust report` collects

@@ -1,14 +1,15 @@
 # bonedigger 🦴
 
-> `ujust report` filing + confirm-driven priority escalation, using GitHub as the message bus.
+> Client-side diagnostic reporting frameworks (`ujust report`) and canonical intake templates for Project Bluefin.
 
 ## Current scope
 
-Issue lifecycle management is Hive-managed across the factory.
+Bonedigger defines the client-side diagnostic reporting frameworks (`ujust report`), PII scrubbing standards, and canonical GitHub issue templates for Project Bluefin. Issue triage, labeling, and queue lifecycle are Hive-managed.
 
 **bonedigger handles:**
+- Specifications and architecture for the `ujust report` diagnostic tool
 - Canonical GitHub issue templates (`templates/`) synced to factory repos
-- Documentation for `ujust report` intake and diagnostic tooling
+- Privacy models and PII scrubbing standards for bug reporting
 ## How it works
 
 ```
@@ -21,40 +22,35 @@ ujust report                      GitHub Issues + Hive
   └─ uploads to user's gist
   └─ opens issue w/ gist link
 ```
-GitHub Issues is the only backend. No central server. User owns their data.
+
+GitHub Issues is the only backend. No central server. The user owns their diagnostic data.
 
 ## Usage
 
 ### As a user
+
 Run on your Bluefin machine:
 ```bash
-ujust report       # file a bug report
-ujust confirm 42   # confirm you hit issue #42 too
-ujust verify 42    # verify issue #42 is fixed after an update
+ujust report       # collect diagnostics and open an issue
 ```
 
 ### Downstream repos
 
 Issue templates in `templates/` are automatically synced to downstream repos via `.github/workflows/sync-templates.yml`.
+
 ## Repository structure
+
 - `templates/` — canonical GitHub issue templates (synced to all org repos)
 - `.github/workflows/sync-templates.yml` — auto-syncs templates to downstream repos
 - `docs/skills/` — agent skill docs
+
 ## Privacy
+
 - All PII scrubbing happens on the user's machine before any upload
-- Diagnostic gists belong to the user — bonedigger only reads them, never creates its own
+- Diagnostic gists belong to the user under their own GitHub account
 - No central server, no telemetry infrastructure required
 
-## Roadmap
-
-### Planned: crash/panic detection in `ujust report`
-
-The diagnostic collector currently captures a live system snapshot but has no awareness of what happened in the *previous* boot. A full class of bugs — kernel panics during sleep, hard lockups, abrupt reboots — leave zero trace in the current session.
-
-Planned work:
-- **[#11](https://github.com/projectbluefin/bonedigger/issues/11) — crash/panic detection section**: unclean boot classifier (4 buckets: clean shutdown / suspend-no-resume / abrupt end / journal unavailable), panic keyword scan of previous boot, crash artifact status (pstore, kdump, coredumps)
-- **[#12](https://github.com/projectbluefin/bonedigger/issues/12) — PII scrubbing for kernel log excerpts**: IPv4/IPv6, UUIDs, disk serials, MAC addresses
-
 ## Part of Project Bluefin
-- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and owns lifecycle management
+
+- [projectbluefin/common](https://github.com/projectbluefin/common) — ships `ujust report` and common system files
 - [projectbluefin/dakota](https://github.com/projectbluefin/dakota) — reference implementation

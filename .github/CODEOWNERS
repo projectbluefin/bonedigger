@@ -3,7 +3,6 @@
 
 # Sensitive paths — require maintainer review
 .github/workflows/  @projectbluefin/maintainers
-action.yml          @projectbluefin/maintainers
 templates/          @projectbluefin/maintainers
 
 # BEGIN TRIAGERS — managed by projectbluefin/common, do not edit manually
