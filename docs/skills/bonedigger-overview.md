@@ -7,15 +7,12 @@ Client-server bug reporting for Project Bluefin, using GitHub Issues as the only
 ```
 USER'S MACHINE                    GITHUB
 ─────────────────                 ─────────────────────────────────────────
-ujust report                      bonedigger lifecycle workflow
-  └─ collects diagnostics           └─ detect `ujust report` issue bodies
-  └─ PII scrub on-device            └─ sync confirm-based priority labels
-  └─ user reviews locally           └─ fast-track agent donation issues
+ujust report                      GitHub Issues + Hive
+  └─ collects diagnostics           └─ intake structured issue reports
+  └─ PII scrub on-device            └─ issue lifecycle managed by Hive
+  └─ user reviews locally
   └─ uploads to user's gist
-  └─ opens issue w/ gist link     common lifecycle workflow
-                                   └─ slash commands, queue state, widget
-ujust confirm <issue#>            └─ bonedigger re-counts confirms
-                                     and escalates priority labels
+  └─ opens issue w/ gist link
 ```
 
 ## User commands
@@ -32,35 +29,16 @@ ujust verify 42      # verify issue #42 is fixed after an update
 | Path | Purpose |
 |------|---------|
 | `templates/` | canonical GitHub issue templates (synced to all org repos) |
-| `.github/workflows/lifecycle.yml` | reusable reporting workflow |
 | `.github/workflows/sync-templates.yml` | auto-syncs templates to downstream repos |
-| `action.yml` | composite action entrypoint (points to reusable workflow) |
+| `docs/skills/` | agent skill docs |
+## Template sync
 
-## Adopting bonedigger in a repo
-
-Add `.github/workflows/bonedigger.yml`:
-```yaml
-name: bonedigger
-on:
-  issues:
-    types: [opened]
-  issue_comment:
-    types: [created]
-
-permissions:
-  issues: write
-  contents: read
-
-jobs:
-  bonedigger:
-    uses: projectbluefin/bonedigger/.github/workflows/lifecycle.yml@main
-    secrets: inherit
-```
-
-The legacy `brand_name`, `brand_emoji`, and `pipeline_marker` inputs are still accepted for backward compatibility, but the slim workflow ignores them.
-
-If a repo also wants slash commands, queue management, or the issue-body widget, pair bonedigger with `projectbluefin/common/.github/workflows/lifecycle.yml`.
-
+Issue templates are maintained in `templates/` and automatically synced to:
+- `projectbluefin/bluefin`
+- `projectbluefin/bluefin-lts`
+- `projectbluefin/common`
+- `projectbluefin/dakota`
+- `projectbluefin/knuckle`
 ## Privacy model
 
 - All PII scrubbing happens on the user's machine before any upload

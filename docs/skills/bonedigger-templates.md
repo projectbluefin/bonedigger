@@ -18,7 +18,6 @@ metadata:
 ## When NOT to Use
 
 - Editing `ujust report`, OTel config, or other image content — that belongs in `projectbluefin/common`
-- Changing lifecycle queue logic or confirm escalation — use the lifecycle skill instead
 - Editing downstream template copies directly in `common`, `dakota`, `bluefin`, `bluefin-lts`, or `knuckle`
 
 ## Core Process
