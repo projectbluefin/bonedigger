@@ -112,6 +112,46 @@ Implemented in `projectbluefin/common/system_files/bluefin/usr/share/ublue-os/ju
 - `systemctl is-enabled kdump.service &>/dev/null` — safe in `if` condition
 - `${PSTORE_COUNT:-0}` — guards against empty find output
 
+## Crash capture enablement (pstore / kdump)
+
+`ujust report` can only *detect* a crash if crash data was actually written somewhere it survives a reboot. This section documents how that data is captured and how Bluefin users enable it. **The enabling is image content and ships in `projectbluefin/common`, not here** — this doc is the specification of what each mechanism is, how it is enabled, and how `ujust report` surfaces it.
+
+### Why this exists (issue #15)
+
+Without crash capture, a machine that panics (kernel crash, hard lockup, panic during s2idle sleep) reboots silently: `/sys/fs/pstore/` and `/var/crash/` are both empty, and there is zero forensic evidence for a bug report. This is the gap issue #15 targets. `ujust report`'s crash/panic detection (above) is only useful once one of the mechanisms below has written data before the reboot.
+
+### The three mechanisms
+
+| Mechanism | What it is | Where data lands | Enabled by | Pros | Cons |
+|-----------|------------|------------------|-----------|------|------|
+| **ramoops** (preferred for laptops) | Reserves a small RAM region via the `ramoops` module that survives reboot | `/sys/fs/pstore/` | kernel cmdline (`ramoops.mem_size=…`) or `/etc/modprobe.d/ramoops.conf` | No disk I/O; works even if storage is wedged; fast | Needs a RAM region the BIOS won't clear — test per platform |
+| **efi-pstore** | Stores pstore data in EFI NVRAM variables (built into the kernel on UEFI) | `/sys/fs/pstore/` | nothing — present on any UEFI system | Zero config on UEFI | Size-limited (~64 KB); NVRAM write cycles; may not fire for very hard panics |
+| **kdump** | Captures a full vmcore to disk | `/var/crash/` | `crashkernel=` kernel cmdline + `kdump.service` | Full memory dump; most diagnostic value | Reserved memory overhead; longer reboot on crash; more setup |
+
+**Recommendation (from issue #15):** ship **efi-pstore** (zero config on UEFI) and **ramoops** as a default or opt-in. Even a small ramoops region gives `ujust report` something to include.
+
+### How each is enabled (image content — lives in `common`)
+
+- **ramoops** — `/etc/modprobe.d/ramoops.conf` in `common`:
+  ```
+  options ramoops mem_size=2097152 record_size=65536 console_size=32768
+  ```
+  or the kernel cmdline (`crashkernel=… ramoops.mem_size=2097152 …`).
+- **efi-pstore** — no package config; the kernel exposes it on UEFI firmware. `ujust report` detects it via the `/sys/fs/pstore` mountpoint.
+- **kdump** — `crashkernel=` on the kernel cmdline + `systemctl enable --now kdump.service` in `common`.
+
+### How users enable it
+
+Once the above image content ships, users enable crash capture without touching configs:
+
+```bash
+ujust enable-crash-dump     # opt-in recipe in common; sets up ramoops/efi-pstore/kdump
+```
+
+Until that recipe exists, users can enable it manually by adding the modprobe file / kernel cmdline / service above. `ujust report` reports the resulting state under **Crash artifact status** (pstore mount + file count, kdump service status, coredumps) on the next run — so enabling is verifiable from the report itself.
+
+**Ownership:** the modprobe config, kernel cmdline, `kdump.service`, and the `ujust enable-crash-dump` recipe are image content and live in `projectbluefin/common` (`system_files/bluefin/usr/share/ublue-os/…`). This doc specifies how they fit into the reporting flow; it does not ship them. See "Where the code lives" below.
+
 ## Optional deep hardware metrics (OTel)
 
 Gated on `/usr/share/ublue-os/otel/ujust-report-config.yaml` existing in the image. If present, the user is offered a 35-second hardware telemetry capture. Outputs two spec-compliant OTLP NDJSON files (one signal type per file, per OTel spec):
