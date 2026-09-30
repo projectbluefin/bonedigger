@@ -42,7 +42,7 @@ Add an optional step, gated on user consent (`gum confirm`), after the normal di
 
 | Field | Source | Notes |
 |-------|--------|-------|
-| Clean screenshot (if capturable) | `gnome-screenshot` (Bluefin GNOME Wayland, via the xdg-desktop-portal Screenshot API) / `spectacle` (Aurora) | Detect which exists; skip silently if none installed |
+| Clean screenshot (if capturable) | xdg-desktop-portal `org.freedesktop.portal.Screenshot` via `gdbus call` | One mechanism on both desktops: GNOME (Bluefin) and KDE (Aurora) each back the portal with their own shell capture. Skip silently if the portal call fails or no portal is running |
 | User-provided image (photo-of-screen) | `gum file` picker or drag-drop | Any image file the user supplies |
 | Screenshot type | On-device analysis | `clean-screenshot` vs `photo-of-screen` vs `unusable` |
 | Extracted text | On-device OCR | See below; folded into `summary.md`, never uploaded raw |
@@ -60,7 +60,7 @@ If the image is classified `unusable`, tell the user and stop — do not upload 
 
 ### On-device OCR and extraction
 
-- Use an on-device OCR engine already present or installable via Flatpak/rpm — `tesseract` (RPM) or the `com.github.tesseract_ocr.Tesseract` Flatpak. Do not add a network OCR API, and do not rely on a generic "app finder" as the OCR engine.
+- Use the `tesseract` RPM as the on-device OCR engine — it is the only engine this spec sanctions. There is no Flatpak OCR engine to fall back to: do not substitute a Flathub app, do not add a network OCR API, and do not rely on a generic "app finder" as the OCR engine. If `tesseract` is absent, skip the OCR step and say so.
 - Extract text, then run it through the **same** `scrub_*` pipeline used for journal logs (`scrub_kernel_log()` + general scrubbing): IPs, MACs, emails, home paths, UUIDs, serials. OCR output is text and is subject to the same PII rules.
 - Attach extracted text to `summary.md` under a "Screenshot context" section. The gist is text-only, so only scrubbed extracted text is attached here — not the image (see "No raw image upload").
 
@@ -83,7 +83,7 @@ Screenshots break the normal PII-scrubbing contract because the PII is *in the p
 | No raw image upload | A screenshot is never uploaded to a gist as-is. This is a hard gate, not a default. |
 | On-device analysis only | OCR, classification, and geometry checks run locally. No image is ever sent to an external service. |
 | Scrub extracted text | OCR text passes through the existing `scrub_*` functions before it lands in `summary.md` or is attached. |
-| User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`), reversible, and remembered via the same env-var/override pattern as other optional steps. |
+| User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`) and reversible. There is no existing remembered-consent mechanism — today's overrides (`IMAGE_INFO_FILE`, `BONEDIGGER_ISSUE_URL`, `BONEDIGGER_BRAND`) are path/URL/brand knobs only. This spec introduces one new variable, `BONEDIGGER_SCREENSHOT` (`ask` (default) / `never` / `always`), to skip or pre-answer the prompt. |
 | Ephemeral intermediates | OCR working files are written under `$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/` and removed on the EXIT trap, exactly like `summary.md` and `journal.txt`. |
 
 This keeps the screenshot path consistent with the rest of the repo: scrubbing happens on-device, before upload, and the user owns their data.
@@ -131,7 +131,7 @@ The implementation is **image content**, so it ships in `projectbluefin/common`,
 | Artifact | Path in common |
 |----------|----------------|
 | Screenshot capture + OCR + scrub logic | `system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just` |
-| Consent / override env vars | same recipe, alongside `IMAGE_INFO_FILE` / `BONEDIGGER_BRAND` |
+| Consent / override env var | same recipe — add `BONEDIGGER_SCREENSHOT` to the override table alongside `IMAGE_INFO_FILE` / `BONEDIGGER_BRAND` |
 | Screenshot template field | `templates/bug-report.yml` (mastered here, synced downstream) |
 
 This doc is the spec. The recipe and any new env vars live in `common`; Dakota and bluefin inherit the recipe automatically — do not add copies to those repos. **Sync workflows are the wrong answer** — edit the recipe directly in `common`.
