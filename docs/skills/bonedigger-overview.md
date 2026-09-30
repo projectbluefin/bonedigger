@@ -41,7 +41,6 @@ ujust report         # collect diagnostics, upload to gist, open issue
 
 - All PII scrubbing happens on the user's machine before any upload
 - Diagnostic gists belong to the user under their own GitHub account
-- `machine-id` is hashed to an 8-char anonymous device ID — not reversible
 
 ## Related repos
 

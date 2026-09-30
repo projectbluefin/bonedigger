@@ -47,7 +47,6 @@ All scrubbing happens on-device before any upload. Nothing identifying leaves th
 | NVIDIA Minor Number | `[REDACTED]` |
 | `USER=`, `LOGNAME=` env vars in logs | `[REDACTED]` |
 | Email addresses in logs | `[REDACTED-email]` |
-| `machine-id` | Hashed to 8-char anonymous `HOST_ID` (SHA256, not reversible) |
 | `host.id`, `host.name`, `host.ip`, `host.mac` | Deleted by OTel resource/privacy processor |
 | `_MACHINE_ID`, `_BOOT_ID`, `_UID`, `_GID`, `_CMDLINE`, `_EXE`, `_COMM` | Deleted from journald log attributes |
 | `process.owner`, `process.command_line`, `process.executable.path` | Deleted by OTel processor |
@@ -124,7 +123,7 @@ The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/
 **OTel collector config highlights:**
 - `memory_limiter` first (512 MiB limit) — OTel best practice
 - `batch` last before exporters — OTel best practice
-- `host.id` disabled (machine-id derived)
+- `host.id` disabled (not collected)
 - Process scraper: `command_line` and `executable.path` metrics disabled at source
 - Filesystem exclusion regexes use proper anchors (`^/proc(/|$)` not `/proc/*`)
 - `hostname_sources: [os]` — no DNS lookup
