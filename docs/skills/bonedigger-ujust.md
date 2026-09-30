@@ -114,6 +114,8 @@ Implemented in `projectbluefin/common/system_files/bluefin/usr/share/ublue-os/ju
 
 ## Optional deep hardware metrics (OTel)
 
+> **Known drift — do not implement from this section.** The sections below (OTel capture, the `glow` upload step, and the `$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/` + EXIT-trap output model) describe a retired design. The shipped `system_files/bluefin/usr/libexec/bonedigger-report` in `projectbluefin/common` has no OTel, no `python3`, no `glow`, and no EXIT trap; it writes drafts to `${XDG_STATE_HOME:-~/.local/state}/ujust-report/drafts/draft-XXXXXX` and deliberately preserves them for `--resume`. Read the script before relying on anything here.
+
 Gated on `/usr/share/ublue-os/otel/ujust-report-config.yaml` existing in the image. If present, the user is offered a 35-second hardware telemetry capture. Outputs two spec-compliant OTLP NDJSON files (one signal type per file, per OTel spec):
 
 - `metrics.otlp.jsonl` — CPU, memory, disk, filesystem, network, paging, processes, Podman containers
@@ -161,7 +163,6 @@ The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/
 - `gh` — GitHub CLI for gist upload and auth check
 - `bootc` — reads booted image status
 - `jq` — parses JSON from bootc and image-info
-- `python3` — safe config-path substitution for the OTel config (see "Config path substitution")
 - `gnome-shell`, `gnome-extensions`, `flatpak` — collects system info
 - `glow` (optional) — renders markdown in terminal
 - `wl-copy` / `xclip` (optional) — clipboard fallback when not authenticated
