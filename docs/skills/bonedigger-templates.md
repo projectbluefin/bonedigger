@@ -40,6 +40,10 @@ metadata:
 7. Validate with:
    - `pre-commit run --all-files`
    - `actionlint .github/workflows/*.yml`
+   - `python3 tests/validate_templates.py` — checks every `templates/*.yml` against the
+     GitHub issue-form schema and checks the sync contract in steps 2 and 5 above
+     (downstream repo list, app-token `repositories` scope, `cancel-in-progress: false`).
+     `python3 -m unittest discover -s tests` covers the validator itself.
 
 ## Template Files
 
@@ -79,6 +83,7 @@ metadata:
 - [ ] External actions are pinned to 40-character SHAs with inline version comments
 - [ ] `pre-commit run --all-files` passes
 - [ ] `actionlint .github/workflows/*.yml` passes
+- [ ] `python3 tests/validate_templates.py` reports `templates: OK`
 
 ## Sources
 
