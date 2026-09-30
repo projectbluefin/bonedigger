@@ -161,6 +161,7 @@ The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/
 - `gh` — GitHub CLI for gist upload and auth check
 - `bootc` — reads booted image status
 - `jq` — parses JSON from bootc and image-info
+- `python3` — safe config-path substitution for the OTel config (see "Config path substitution")
 - `gnome-shell`, `gnome-extensions`, `flatpak` — collects system info
 - `glow` (optional) — renders markdown in terminal
 - `wl-copy` / `xclip` (optional) — clipboard fallback when not authenticated

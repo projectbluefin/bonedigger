@@ -44,7 +44,7 @@ Add an optional step, gated on user consent (`gum confirm`), after the normal di
 |-------|--------|-------|
 | Clean screenshot (if capturable) | xdg-desktop-portal `org.freedesktop.portal.Screenshot` | One mechanism on both desktops: GNOME (Bluefin) and KDE (Aurora) each back the portal with their own shell capture. The call is **asynchronous** — see below. Skip silently if the portal call fails, no portal is running, or the user dismisses the portal dialog |
 | User-provided image (photo-of-screen) | `gum file` picker or drag-drop | Any image file the user supplies |
-| Screenshot type | On-device analysis | `clean-screenshot` vs `photo-of-screen` vs `unusable` |
+| Screenshot type | On-device analysis | `clean-screenshot` / `photo-of-screen` / `unusable` / `unknown` (detection unavailable — see below) |
 | Extracted text | On-device OCR | See below; folded into `summary.md`, never uploaded raw |
 | Problem classification | On-device heuristic | `error-dialog` / `blank-screen` / `visual-glitch` / `color-issue` / `unknown` |
 
@@ -59,11 +59,13 @@ Required shape:
 3. Wait for `Response(u response, a{sv} results)`, with a timeout (the dialog is user-driven — 60s is reasonable) and a cancel path.
 4. `response == 0` ⇒ success, take `results['uri']` (a `file://` URI) and strip the scheme. `response == 1` ⇒ user cancelled, `2` ⇒ other error — in both cases skip the screenshot step silently and continue the report.
 
-If implementing the monitor/parse dance in shell proves fragile, a short `python3` + `dbus`/`Gio` helper is acceptable — `python3` is already a dependency of the recipe. Do not busy-poll a guessed output path.
+If implementing the monitor/parse dance in shell proves fragile, a short `python3` + `dbus`/`Gio` helper is acceptable — `python3` is already a dependency of the recipe (it performs the OTel config-path substitution). Do not busy-poll a guessed output path.
+
+The portal writes its image somewhere of its own choosing, **outside** `report-XXXXXX/`. Copy it into `report-XXXXXX/` and delete the portal-produced file immediately — see "Privacy Model".
 
 ### Photo-of-screen detection
 
-Cheap, local heuristics before committing to OCR. These are pixel operations and need an image library — the recipe may use `python3` with `python3-pillow` and `python3-numpy` (both Fedora RPMs, consistent with the `python3` already required by `ujust report`). No OpenCV, no network service. **If those modules are absent, skip detection entirely**, treat the image as `unknown`, tell the user, and continue — detection is an enhancement, never a hard requirement.
+Cheap, local heuristics before committing to OCR. These are pixel operations and need an image library — the recipe may use `python3` with `python3-pillow` and `python3-numpy`. `python3` is already required by `ujust report`; `python3-pillow` and `python3-numpy` are **new** optional dependencies this spec introduces (both are Fedora RPMs) and must be added to the recipe's dependency list as optional. No OpenCV, no network service. **If those modules are absent, skip detection entirely**, classify the image as `unknown`, tell the user, and continue — detection is an enhancement, never a hard requirement.
 
 - **Sharpness** — Laplacian variance of a cropped region; low variance ⇒ likely out-of-focus phone photo. Thresholds are TBD and must be tuned against real submissions before the heuristic is trusted.
 - **Aspect / geometry** — Non-standard aspect ratio ⇒ likely a photo. Full perspective-distortion estimation is out of scope for a Pillow/numpy implementation; aspect ratio and edge-angle sanity checks only.
@@ -98,6 +100,7 @@ Screenshots break the normal PII-scrubbing contract because the PII is *in the p
 | Scrub extracted text | OCR text passes through the existing `scrub_*` functions before it lands in `summary.md` or is attached. `scrub_*` is regex-only and cannot catch window titles, filenames, or chat/terminal text — see "Integration With the Report Flow" for the mandatory user-review ordering. |
 | User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`) and reversible. There is no existing remembered-consent mechanism — today's overrides (`IMAGE_INFO_FILE`, `BONEDIGGER_ISSUE_URL`, `BONEDIGGER_BRAND`) are path/URL/brand knobs only. This spec introduces one new variable, `BONEDIGGER_SCREENSHOT` (`ask` (default) / `never` / `always`), to skip or pre-answer the prompt. |
 | Ephemeral intermediates | OCR working files are written under `$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/` and removed on the EXIT trap, exactly like `summary.md` and `journal.txt`. |
+| Unconditional image deletion | **Every image intermediate is deleted on every exit path**, including the cancel path. This is stronger than the EXIT-trap rule above and is not optional. Covered: the portal-produced file at `results['uri']` (which lives *outside* `report-XXXXXX/` and is therefore untouched by the trap), the user-supplied image if it was copied into the report dir, and any cropped/downscaled derivatives written by the heuristics or OCR step. Requirements: (a) delete the portal file as soon as it is copied into `report-XXXXXX/`, not at exit; (b) register a dedicated cleanup for image files that runs even when the recipe takes the `trap - EXIT; exit 0` cancel-preserve path (`bonedigger-ujust.md`, "Report output structure") — that path preserves `summary.md`/`journal.txt` for the user, but must never preserve pixels; (c) if the user declines consent or aborts mid-flow, delete the images before returning. Withdrawn consent must leave no image on disk. |
 
 This keeps the screenshot path consistent with the rest of the repo: scrubbing happens on-device, before upload, and the user owns their data.
 
@@ -165,6 +168,7 @@ This doc is the spec. The recipe and any new env vars live in `common`; Dakota a
 - [ ] The portal capture waits on the `Request::Response` signal and handles cancel/timeout.
 - [ ] Missing `tesseract` or `python3-pillow`/`python3-numpy` degrades gracefully instead of failing the report.
 - [ ] Extracted text and OCR intermediates are removed on the EXIT trap.
+- [ ] All image intermediates — including the portal-produced file outside `report-XXXXXX/` — are deleted on every exit path, including the `trap - EXIT; exit 0` cancel-preserve path and declined consent.
 - [ ] Consent is explicit and reversible; the user is told what is attached.
 - [ ] `pre-commit run --all-files` passes.
 - [ ] `actionlint .github/workflows/*.yml` passes (only if a workflow changes).
