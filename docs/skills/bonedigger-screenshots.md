@@ -1,11 +1,7 @@
 ---
 name: bonedigger-screenshots
 description: Use when adding screenshot capture, on-device screenshot analysis, or screenshot privacy rules to the `ujust report` diagnostics flow.
-metadata:
-  context7-sources:
-    - /websites/github_en_actions
 ---
-
 # bonedigger — screenshot capture & analysis
 
 ## When to Use
@@ -46,7 +42,7 @@ Add an optional step, gated on user consent (`gum confirm`), after the normal di
 
 | Field | Source | Notes |
 |-------|--------|-------|
-| Clean screenshot (if capturable) | `scrot` / `spectacle --save` / `grim` | Detect which exists; skip silently if none installed |
+| Clean screenshot (if capturable) | `gnome-screenshot` (Bluefin GNOME Wayland, via the xdg-desktop-portal Screenshot API) / `spectacle` (Aurora) | Detect which exists; skip silently if none installed |
 | User-provided image (photo-of-screen) | `gum file` picker or drag-drop | Any image file the user supplies |
 | Screenshot type | On-device analysis | `clean-screenshot` vs `photo-of-screen` vs `unusable` |
 | Extracted text | On-device OCR | See below; folded into `summary.md`, never uploaded raw |
@@ -64,9 +60,9 @@ If the image is classified `unusable`, tell the user and stop — do not upload 
 
 ### On-device OCR and extraction
 
-- Use an on-device OCR engine already present or installable via Flatpak/rpm (`tesseract`, or the `org.freedesktop.LinuxAppFinder`-style tooling). Do not add a network OCR API.
+- Use an on-device OCR engine already present or installable via Flatpak/rpm — `tesseract` (RPM) or the `com.github.tesseract_ocr.Tesseract` Flatpak. Do not add a network OCR API, and do not rely on a generic "app finder" as the OCR engine.
 - Extract text, then run it through the **same** `scrub_*` pipeline used for journal logs (`scrub_kernel_log()` + general scrubbing): IPs, MACs, emails, home paths, UUIDs, serials. OCR output is text and is subject to the same PII rules.
-- Attach extracted text to `summary.md` under a "Screenshot context" section. Attach the image only if the user explicitly opts in **and** it has been scrubbed (see Privacy).
+- Attach extracted text to `summary.md` under a "Screenshot context" section. The gist is text-only, so only scrubbed extracted text is attached here — not the image (see "No raw image upload").
 
 ### Problem classification
 
@@ -87,9 +83,8 @@ Screenshots break the normal PII-scrubbing contract because the PII is *in the p
 | No raw image upload | A screenshot is never uploaded to a gist as-is. This is a hard gate, not a default. |
 | On-device analysis only | OCR, classification, and geometry checks run locally. No image is ever sent to an external service. |
 | Scrub extracted text | OCR text passes through the existing `scrub_*` functions before it lands in `summary.md` or is attached. |
-| Scrub or blur before image upload | If the user opts in to attaching the image, it must be scrubbed on-device first — redact faces, personal text, and any region containing PII. A blur/redact pass operates on pixel regions derived from the OCR text bounding boxes. |
 | User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`), reversible, and remembered via the same env-var/override pattern as other optional steps. |
-| Ephemeral intermediates | OCR working files are written under `$XDG_RUNTIME_DIR/ujust-report/` and removed on the EXIT trap, exactly like `summary.md` and `journal.txt`. |
+| Ephemeral intermediates | OCR working files are written under `$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/` and removed on the EXIT trap, exactly like `summary.md` and `journal.txt`. |
 
 This keeps the screenshot path consistent with the rest of the repo: scrubbing happens on-device, before upload, and the user owns their data.
 
@@ -108,12 +103,7 @@ classify image (clean vs photo-of-screen vs unusable)
 OCR on-device → scrub extracted text → fold into summary.md
         │
         ▼
-gum confirm "Also attach a scrubbed screenshot?" (opt-in)
-        │  no   →  attach text only
-        ▼ yes   → blur/redact PII regions → attach scrubbed image
-        │
-        ▼
-upload (gh gist) summary.md + journal.txt [+ screenshot asset] → open issue
+upload (gh gist) summary.md + journal.txt [+ extracted text] → open issue
 ```
 
 The screenshot step sits between rendering and upload so the extracted text is part of the reviewed `summary.md`.
@@ -150,7 +140,7 @@ This doc is the spec. The recipe and any new env vars live in `common`; Dakota a
 
 - [ ] No raw screenshot is ever uploaded; on-device analysis is a hard gate.
 - [ ] OCR output passes through the existing `scrub_*` functions.
-- [ ] Extracted text and any scrubbed image are removed on the EXIT trap.
+- [ ] Extracted text and OCR intermediates are removed on the EXIT trap.
 - [ ] Consent is explicit and reversible; the user is told what is attached.
 - [ ] `pre-commit run --all-files` passes.
 - [ ] `actionlint .github/workflows/*.yml` passes (only if a workflow changes).
