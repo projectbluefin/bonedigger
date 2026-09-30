@@ -26,3 +26,17 @@ repos:
         entry: 'uses:\s*projectbluefin/actions(?:/[A-Za-z0-9._-]+)?@[0-9a-f]{40}\b'
         types: [yaml]
         files: '\.github/workflows/'
+      - id: validate-issue-templates
+        name: Validate issue templates and the sync contract
+        language: python
+        additional_dependencies: ['pyyaml==6.0.3']
+        entry: python tests/validate_templates.py
+        pass_filenames: false
+        files: '^(templates/.*\.yml|\.github/workflows/sync-templates\.yml|docs/skills/bonedigger-templates\.md|tests/validate_templates\.py)$'
+      - id: validate-templates-unit-tests
+        name: Unit tests for the template validator
+        language: python
+        additional_dependencies: ['pyyaml==6.0.3']
+        entry: python -m unittest discover -s tests
+        pass_filenames: false
+        files: '^(templates/|\.github/workflows/sync-templates\.yml|tests/)'
