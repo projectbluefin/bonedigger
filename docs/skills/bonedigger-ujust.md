@@ -142,10 +142,9 @@ The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/
 ## Upload flow
 
 1. Show rendered report via `glow` + `gum pager` for local review
-2. **Print the issue-form QR code** so the user can open the form on their phone
-3. Confirm upload with `gum confirm`
+2. Confirm upload with `gum confirm`
 3. If `gh auth status --active` fails → copy to clipboard (wl-copy or xclip), show issue URL; `journal.txt` path shown separately
-4. If auth OK → `gh gist create --public` with `summary.md` + `journal.txt` (always) + `metrics.otlp.jsonl` + `logs.otlp.jsonl` (if OTel captured). **After a successful gist upload, print the gist URL as a QR code.**
+4. If auth OK → `gh gist create --public` with `summary.md` + `journal.txt` (always) + `metrics.otlp.jsonl` + `logs.otlp.jsonl` (if OTel captured).
 5. `gum choose` "File a bug report / Request a feature / Skip" — bugs route to the image's own tracker, feature requests always go to common
 
 ## Environment variable overrides
@@ -153,33 +152,31 @@ The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `IMAGE_INFO_FILE` | `/usr/share/ublue-os/image-info.json` | Image metadata path |
-| `BONEDIGGER_ISSUE_URL` | `https://github.com/projectbluefin/common/issues/new?template=bug-report.yml` | Issue URL base |
 | `BONEDIGGER_BRAND` | `🫐 Bluefin Bug Report` | Brand name shown in gum header |
+| `XDG_STATE_HOME` | `$HOME/.local/state` | Parent directory for `ujust-report` drafts and local copies |
+| `UBLUE_IMAGE_REPO_BIN` | `/usr/libexec/ublue-image-repo` | Helper used to route bug reports from the image name and tag |
+
+`BONEDIGGER_ISSUE_URL` is not read by `bonedigger-report` and does not override
+issue routing. `route_issue_repo()` calls `ublue-image-repo` with the image name
+and tag and a `projectbluefin/common` fallback; feature requests go to
+`projectbluefin/common`.
 
 ## Console QR codes (`ujust report`)
 
-After the summary renders, print a QR code so a user on their phone can scan it
-and open the report to voice-dictate into it. Full spec:
-[`bonedigger-qrcode.md`](bonedigger-qrcode.md).
+Console QR output is **proposed, not implemented** in the current
+[`bonedigger-report` script](https://github.com/projectbluefin/common/blob/528189efc699d5ac43f427fe672f1f9550f8e96d/system_files/bluefin/usr/libexec/bonedigger-report).
+The script has no `print_qrcode` helper, `qrencode` invocation, or bundled QR
+fallback. It prints the created issue URL and offers to open it in a browser;
+it does not display an issue-form or gist QR code.
 
-Two QRs, both URL-only (no PII):
-
-1. **Pre-upload** — right after the summary renders, before the upload confirm:
-   QR of the canonical issue-report URL (`BONEDIGGER_ISSUE_URL` / `BUG_REPORT_URL`)
-   so the form opens on the phone.
-2. **Post-upload** — after `gh gist create --public` succeeds: QR of the public
-   gist URL so the report opens on any device.
-
-Render with `qrencode -t ANSIUTF8 -s <size> -m 4 "<url>"` (primary), falling back
-to a bundled pure-bash generator when `qrencode` is absent. Wrap in a single
-`print_qrcode <url>` helper so the renderer is one choke point; the helper must
-round-trip (decoded output equals the input URL).
+The proposed two-QR flow and rendering requirements remain in
+[`bonedigger-qrcode.md`](bonedigger-qrcode.md). They are not current upload
+steps or runtime dependencies.
 
 ## Dependencies
 
 - `gum` — TUI prompts and styling
 - `gh` — GitHub CLI for gist upload and auth check
-- `qrencode` — prints the console QR code (see above)
 - `bootc` — reads booted image status
 - `jq` — parses JSON from bootc and image-info
 - `gnome-shell`, `gnome-extensions`, `flatpak` — collects system info
@@ -202,7 +199,7 @@ Temp directory is cleaned up on EXIT trap. Use `trap - EXIT; exit 0` to preserve
 ## Consumer context (read before proposing design changes)
 
 - **Bluefin, Aurora, and Dakota all use GitHub as their backend.** They upload reports as GitHub Gists and file GitHub Issues. They do NOT use external paste services.
-- `BUG_REPORT_URL` in `/etc/os-release` is the canonical source for the distro's issue tracker — no env var needed for this.
+- Current bug-report routing uses `ublue-image-repo` with the image name and tag, not `BUG_REPORT_URL` in `/etc/os-release` or `BONEDIGGER_ISSUE_URL`.
 - If adding non-GitHub paste support (e.g. for Fedora, Debian, Ubuntu), use a small hardcoded lookup table keyed on the `BUG_REPORT_URL` domain. Do not add custom `os-release` fields or new env vars for this.
 
 ## Where the code lives — do not get this wrong

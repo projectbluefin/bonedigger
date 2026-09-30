@@ -4,6 +4,14 @@ Load when adding console QR output to `ujust report`: a way for a user on
 their phone to scan a code printed in the terminal and open the report so they
 can voice-dictate into it.
 
+## Status
+
+This is a **proposal**, not shipped behavior. The current
+[`bonedigger-report` script](https://github.com/projectbluefin/common/blob/528189efc699d5ac43f427fe672f1f9550f8e96d/system_files/bluefin/usr/libexec/bonedigger-report)
+does not render QR codes or read `BONEDIGGER_ISSUE_URL`. The rendering,
+fallback, and self-check requirements below apply to a future implementation
+in `projectbluefin/common`.
+
 ## Why
 
 The report flow ends with the user staring at a terminal. This feature lets the
@@ -18,9 +26,8 @@ Issue: projectbluefin/bonedigger#10 "QR codes for stuff".
 Two QR opportunities in the existing upload flow — neither carries PII:
 
 1. **Pre-upload — issue form.** Encodes the canonical issue-report URL for the
-   image's tracker (`BONEDIGGER_ISSUE_URL`, or derived from `BUG_REPORT_URL` in
-   `/etc/os-release`). Opening it on a phone presents the bug-report form the
-   user can voice-dictate into. Optionally append `?body=` with a short prompt so
+   image's tracker, using the repository selected by `route_issue_repo()`.
+   Opening it on a phone presents the bug-report form the user can voice-dictate into. Optionally append `?body=` with a short prompt so
    the first field is pre-seeded; keep the seeded body free of PII.
 2. **Post-upload — gist.** After `gh gist create --public`, print a second QR
    encoding the public gist URL so the user can open their uploaded report on any
@@ -31,23 +38,16 @@ PII — consistent with the on-device scrubbing model.
 
 ## Where it fits in the flow
 
-Current flow (see `bonedigger-ujust.md`):
+Proposed insertion points in the current script (see `bonedigger-ujust.md`):
 
-1. render summary via `glow` + `gum pager` for local review
-2. confirm upload with `gum confirm`
-3. auth check → gist upload / clipboard
-4. `gum choose` file-a-bug / request-feature / skip
+- After `preview_draft`, before submission confirmation: show the issue-form QR.
+- After `publish_smart_logs` successfully publishes selected profiles: show the
+  gist QR. No gist QR is needed when no profiles were selected.
 
-Add the QR at these points:
-
-- **After step 1 (summary rendered), before step 2.** Show the issue-form QR so
-  the user can open the form on their phone while they decide whether to upload.
-- **After step 3 gist succeeds.** Show the gist QR as the final confirmation the
-  report is shareable from any device.
-
-The recipe (`system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just` in
-`projectbluefin/common`) is image content and lives in `common`, not here. This
-doc is the specification; the implementation belongs in `common`.
+The implementation belongs in
+`system_files/bluefin/usr/libexec/bonedigger-report` in `projectbluefin/common`;
+`60-bonedigger.just` is the recipe entry point. Both are image content shipped
+by `common`. This document only specifies the proposed feature.
 
 ## Rendering
 
@@ -77,4 +77,5 @@ one-line check in the recipe's test harness.
 - `qrencode` (primary renderer; available on Bluefin)
 - `zbarimg` (optional; only for the round-trip self-check)
 
-No new env vars. Reuse `BONEDIGGER_ISSUE_URL` / `BUG_REPORT_URL`.
+No new env vars. Reuse the script's routed repository and the URL returned by
+`gh gist create`; `BONEDIGGER_ISSUE_URL` is not a supported override.
