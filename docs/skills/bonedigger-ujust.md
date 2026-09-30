@@ -5,7 +5,7 @@ Load when working on the client-side diagnostic reporting tool in `projectbluefi
 ## Commands
 
 ```bash
-ujust report                  # collect diagnostics, review locally, upload to gist, open issue
+ujust report [--resume <draft-directory>]   # collect diagnostics, review locally, upload to gist, open issue
 ujust report --confirm <issue #|issue URL>   # post a system-fingerprint comment confirming an issue is fixed
 ```
 
@@ -143,7 +143,7 @@ The definitive OTel config lives in `projectbluefin/common/system_files/bluefin/
 ## Upload flow
 
 1. Show rendered report via `glow` + `gum pager` for local review
-2. Confirm upload with `gum confirm`
+2. Confirm upload with `gum confirm` (skipped when stdin/stdout are not a TTY)
 3. If `gh auth status --active` fails → copy to clipboard (wl-copy or xclip), show issue URL; `journal.txt` path shown separately
 4. If auth OK → `gh gist create --public` with `summary.md` + `journal.txt` (always) + `metrics.otlp.jsonl` + `logs.otlp.jsonl` (if OTel captured)
 5. `gum choose` "File a bug report / Request a feature / Skip" — bugs route to the image's own tracker, feature requests always go to common
