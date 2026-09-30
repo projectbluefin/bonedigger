@@ -54,12 +54,12 @@ Add an optional step, gated on user consent (`gum confirm`), after the normal di
 
 Required shape:
 
-1. Compute the expected `Request` path from the sender's unique bus name plus a caller-chosen `handle_token`, and start listening **before** calling, e.g. `gdbus monitor --session --dest org.freedesktop.portal.Desktop` filtered to that path (or a `dbus-monitor` / `busctl monitor` equivalent), so the response cannot be missed in the race window.
-2. Call `Screenshot()` with `handle_token` and `interactive` options.
-3. Wait for `Response(u response, a{sv} results)`, with a timeout (the dialog is user-driven — 60s is reasonable) and a cancel path.
+1. Start listening **before** calling, so the response cannot be missed in the race window. Note that the `Request` path cannot be precomputed in a two-process shell form: it is derived from the *calling* connection's unique bus name, and with a separate `gdbus monitor` / `gdbus call` pair the caller is the short-lived `gdbus call` process whose `:1.NNN` name is unknown until it connects. So the monitor must be unfiltered — `gdbus monitor --session --dest org.freedesktop.portal.Desktop` (or a `dbus-monitor` / `busctl monitor` equivalent) watching **all** `org.freedesktop.portal.Request::Response` signals — and the correct one is selected afterwards by matching the object path against the one `Screenshot()` returned. Precomputing the path is only possible when the call and the signal subscription share one D-Bus connection, i.e. in the single-connection helper below.
+2. Call `Screenshot()` with `handle_token` and `interactive` options, and keep the `Request` object path it returns.
+3. Wait for a `Response(u response, a{sv} results)` whose object path equals that returned path, with a timeout (the dialog is user-driven — 60s is reasonable) and a cancel path.
 4. `response == 0` ⇒ success, take `results['uri']` (a `file://` URI) and strip the scheme. `response == 1` ⇒ user cancelled, `2` ⇒ other error — in both cases skip the screenshot step silently and continue the report.
 
-If implementing the monitor/parse dance in shell proves fragile, a short `python3` + `dbus`/`Gio` helper is acceptable — `python3` is already a dependency of the recipe (it performs the OTel config-path substitution). Do not busy-poll a guessed output path.
+Because the unfiltered-monitor form is noisy and easy to get wrong, the **preferred** shape is a short single-connection `python3` + `Gio` (or `dbus`) helper: it calls `Screenshot()` and subscribes to `Response` on the same connection, so it can precompute or directly match the `Request` path without parsing monitor output. `python3` is already a dependency of the recipe (it performs the OTel config-path substitution). Do not busy-poll a guessed output path.
 
 The portal writes its image somewhere of its own choosing, **outside** `report-XXXXXX/`. Copy it into `report-XXXXXX/` and delete the portal-produced file immediately — see "Privacy Model".
 
