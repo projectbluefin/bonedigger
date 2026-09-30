@@ -207,13 +207,14 @@ Temp directory is cleaned up on EXIT trap. Use `trap - EXIT; exit 0` to preserve
 
 ## Where the code lives — do not get this wrong
 
-The recipe and OTel config are **image content**, not CI tooling. They live in `projectbluefin/common`:
+The recipe, the `bonedigger-report` script, and the OTel config are **image content**, not CI tooling. They live in `projectbluefin/common`:
 
 | File | Path in common |
 |------|----------------|
 | `ujust report` recipe | `system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just` |
+| `bonedigger-report` script | `system_files/bluefin/usr/libexec/bonedigger-report` |
 | OTel collector config | `system_files/bluefin/usr/share/ublue-os/otel/ujust-report-config.yaml` |
 
-`common` ships both files to every image via `common.bst`. Dakota and bluefin inherit them automatically — do **not** add copies to those repos.
+`common` ships these files to every image via `common.bst`. Dakota and bluefin inherit them automatically — do **not** add copies to those repos.
 
 **Sync workflows are the wrong answer.** If you find yourself creating a workflow to copy these files from bonedigger to common (or anywhere else), stop: the file is in the wrong repo. Edit it directly in common.
