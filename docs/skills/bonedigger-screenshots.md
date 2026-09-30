@@ -42,25 +42,38 @@ Add an optional step, gated on user consent (`gum confirm`), after the normal di
 
 | Field | Source | Notes |
 |-------|--------|-------|
-| Clean screenshot (if capturable) | xdg-desktop-portal `org.freedesktop.portal.Screenshot` via `gdbus call` | One mechanism on both desktops: GNOME (Bluefin) and KDE (Aurora) each back the portal with their own shell capture. Skip silently if the portal call fails or no portal is running |
+| Clean screenshot (if capturable) | xdg-desktop-portal `org.freedesktop.portal.Screenshot` | One mechanism on both desktops: GNOME (Bluefin) and KDE (Aurora) each back the portal with their own shell capture. The call is **asynchronous** — see below. Skip silently if the portal call fails, no portal is running, or the user dismisses the portal dialog |
 | User-provided image (photo-of-screen) | `gum file` picker or drag-drop | Any image file the user supplies |
 | Screenshot type | On-device analysis | `clean-screenshot` vs `photo-of-screen` vs `unusable` |
 | Extracted text | On-device OCR | See below; folded into `summary.md`, never uploaded raw |
 | Problem classification | On-device heuristic | `error-dialog` / `blank-screen` / `visual-glitch` / `color-issue` / `unknown` |
 
+### Portal capture is asynchronous
+
+`org.freedesktop.portal.Screenshot.Screenshot()` does **not** return the image. It returns a `Request` object path, then shows an interactive portal dialog; the file URI arrives later in the `org.freedesktop.portal.Request::Response` signal on that path. A bare `gdbus call` therefore yields an object path and no image — the recipe must wait for the signal.
+
+Required shape:
+
+1. Compute the expected `Request` path from the sender's unique bus name plus a caller-chosen `handle_token`, and start listening **before** calling, e.g. `gdbus monitor --session --dest org.freedesktop.portal.Desktop` filtered to that path (or a `dbus-monitor` / `busctl monitor` equivalent), so the response cannot be missed in the race window.
+2. Call `Screenshot()` with `handle_token` and `interactive` options.
+3. Wait for `Response(u response, a{sv} results)`, with a timeout (the dialog is user-driven — 60s is reasonable) and a cancel path.
+4. `response == 0` ⇒ success, take `results['uri']` (a `file://` URI) and strip the scheme. `response == 1` ⇒ user cancelled, `2` ⇒ other error — in both cases skip the screenshot step silently and continue the report.
+
+If implementing the monitor/parse dance in shell proves fragile, a short `python3` + `dbus`/`Gio` helper is acceptable — `python3` is already a dependency of the recipe. Do not busy-poll a guessed output path.
+
 ### Photo-of-screen detection
 
-Cheap, local heuristics before committing to OCR:
+Cheap, local heuristics before committing to OCR. These are pixel operations and need an image library — the recipe may use `python3` with `python3-pillow` and `python3-numpy` (both Fedora RPMs, consistent with the `python3` already required by `ujust report`). No OpenCV, no network service. **If those modules are absent, skip detection entirely**, treat the image as `unknown`, tell the user, and continue — detection is an enhancement, never a hard requirement.
 
-- **Sharpness** — Laplacian variance of a cropped region; low variance ⇒ likely out-of-focus phone photo.
-- **Aspect / geometry** — Non-standard aspect ratio or strong perspective distortion ⇒ likely a photo.
-- **Phone UI overlays** — Status-bar clock / battery / notch regions ⇒ photo.
+- **Sharpness** — Laplacian variance of a cropped region; low variance ⇒ likely out-of-focus phone photo. Thresholds are TBD and must be tuned against real submissions before the heuristic is trusted.
+- **Aspect / geometry** — Non-standard aspect ratio ⇒ likely a photo. Full perspective-distortion estimation is out of scope for a Pillow/numpy implementation; aspect ratio and edge-angle sanity checks only.
+- **Phone UI overlays** — Status-bar clock / battery / notch regions ⇒ photo. Best-effort, low confidence.
 
 If the image is classified `unusable`, tell the user and stop — do not upload garbage. If `photo-of-screen`, warn the user and prefer extracted text over the image.
 
 ### On-device OCR and extraction
 
-- Use the `tesseract` RPM as the on-device OCR engine — it is the only engine this spec sanctions. There is no Flatpak OCR engine to fall back to: do not substitute a Flathub app, do not add a network OCR API, and do not rely on a generic "app finder" as the OCR engine. If `tesseract` is absent, skip the OCR step and say so.
+- Use the `tesseract` RPM as the on-device OCR engine — it is the only *OCR* engine this spec sanctions (the Pillow/numpy dependency above is for pixel heuristics, not OCR). There is no Flatpak OCR engine to fall back to: do not substitute a Flathub app, do not add a network OCR API, and do not rely on a generic "app finder" as the OCR engine. If `tesseract` is absent, skip the OCR step and say so.
 - Extract text, then run it through the **same** `scrub_*` pipeline used for journal logs (`scrub_kernel_log()` + general scrubbing): IPs, MACs, emails, home paths, UUIDs, serials. OCR output is text and is subject to the same PII rules.
 - Attach extracted text to `summary.md` under a "Screenshot context" section. The gist is text-only, so only scrubbed extracted text is attached here — not the image (see "No raw image upload").
 
@@ -82,7 +95,7 @@ Screenshots break the normal PII-scrubbing contract because the PII is *in the p
 |------|-------------|
 | No raw image upload | A screenshot is never uploaded to a gist as-is. This is a hard gate, not a default. |
 | On-device analysis only | OCR, classification, and geometry checks run locally. No image is ever sent to an external service. |
-| Scrub extracted text | OCR text passes through the existing `scrub_*` functions before it lands in `summary.md` or is attached. |
+| Scrub extracted text | OCR text passes through the existing `scrub_*` functions before it lands in `summary.md` or is attached. `scrub_*` is regex-only and cannot catch window titles, filenames, or chat/terminal text — see "Integration With the Report Flow" for the mandatory user-review ordering. |
 | User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`) and reversible. There is no existing remembered-consent mechanism — today's overrides (`IMAGE_INFO_FILE`, `BONEDIGGER_ISSUE_URL`, `BONEDIGGER_BRAND`) are path/URL/brand knobs only. This spec introduces one new variable, `BONEDIGGER_SCREENSHOT` (`ask` (default) / `never` / `always`), to skip or pre-answer the prompt. |
 | Ephemeral intermediates | OCR working files are written under `$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/` and removed on the EXIT trap, exactly like `summary.md` and `journal.txt`. |
 
@@ -95,7 +108,7 @@ diagnostics capture  →  summary.md + journal.txt rendered
         │
         ▼
 gum confirm "Attach a screenshot / photo?"
-        │  (no)  →  skip, continue to upload
+        │  (no)  →  skip
         ▼  (yes)
 classify image (clean vs photo-of-screen vs unusable)
         │  unusable → warn, offer re-capture, then continue
@@ -103,10 +116,18 @@ classify image (clean vs photo-of-screen vs unusable)
 OCR on-device → scrub extracted text → fold into summary.md
         │
         ▼
-upload (gh gist) summary.md + journal.txt [+ extracted text] → open issue
+glow + gum pager local review of summary.md   ← user sees OCR text here
+        │
+        ▼
+gum confirm upload
+        │
+        ▼
+upload (gh gist) summary.md + journal.txt → open issue
 ```
 
-The screenshot step sits between rendering and upload so the extracted text is part of the reviewed `summary.md`.
+**Ordering is a privacy requirement, not a preference.** The existing flow (`bonedigger-ujust.md`, "Upload flow" steps 1–2) shows the rendered report in `glow` + `gum pager` *first*, then asks `gum confirm` to upload. The whole screenshot step — capture, classification, OCR, scrub — must run **before** that pager review, so the extracted text is in the `summary.md` the user actually reads.
+
+`scrub_*` is regex-only (IPs, MACs, emails, home paths, UUIDs, serials). OCR pulls in window titles, filenames, and chat/terminal text that no regex catches, so the user's own eyes on the pager are the real mitigation. If an implementation cannot fold the screenshot step in before the first render, it must re-render and re-show the pager after OCR and before `gum confirm`. Uploading OCR text the user has not seen paged is a bug.
 
 ## Template Changes
 
@@ -140,6 +161,9 @@ This doc is the spec. The recipe and any new env vars live in `common`; Dakota a
 
 - [ ] No raw screenshot is ever uploaded; on-device analysis is a hard gate.
 - [ ] OCR output passes through the existing `scrub_*` functions.
+- [ ] The screenshot/OCR step completes **before** the `glow` + `gum pager` review, so no OCR text reaches the gist unreviewed.
+- [ ] The portal capture waits on the `Request::Response` signal and handles cancel/timeout.
+- [ ] Missing `tesseract` or `python3-pillow`/`python3-numpy` degrades gracefully instead of failing the report.
 - [ ] Extracted text and OCR intermediates are removed on the EXIT trap.
 - [ ] Consent is explicit and reversible; the user is told what is attached.
 - [ ] `pre-commit run --all-files` passes.
