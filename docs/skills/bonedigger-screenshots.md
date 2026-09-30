@@ -71,7 +71,7 @@ Cheap, local heuristics before committing to OCR. These are pixel operations and
 - **Aspect / geometry** — Non-standard aspect ratio ⇒ likely a photo. Full perspective-distortion estimation is out of scope for a Pillow/numpy implementation; aspect ratio and edge-angle sanity checks only.
 - **Phone UI overlays** — Status-bar clock / battery / notch regions ⇒ photo. Best-effort, low confidence.
 
-If the image is classified `unusable`, tell the user and stop — do not upload garbage. If `photo-of-screen`, warn the user and prefer extracted text over the image.
+If the image is classified `unusable`, warn the user and offer to re-capture. Only the screenshot step is affected — never abort the report. If the user declines to re-capture, or the replacement is also `unusable`, skip the screenshot step entirely (no image, no OCR text, delete the intermediates per "Privacy Model") and continue the normal report flow. Do not upload garbage. If `photo-of-screen`, warn the user and prefer extracted text over the image.
 
 ### On-device OCR and extraction
 
@@ -98,7 +98,7 @@ Screenshots break the normal PII-scrubbing contract because the PII is *in the p
 | No raw image upload | A screenshot is never uploaded to a gist as-is. This is a hard gate, not a default. |
 | On-device analysis only | OCR, classification, and geometry checks run locally. No image is ever sent to an external service. |
 | Scrub extracted text | OCR text passes through the existing `scrub_*` functions before it lands in `summary.md` or is attached. `scrub_*` is regex-only and cannot catch window titles, filenames, or chat/terminal text — see "Integration With the Report Flow" for the mandatory user-review ordering. |
-| User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`) and reversible. There is no existing remembered-consent mechanism — today's overrides (`IMAGE_INFO_FILE`, `BONEDIGGER_ISSUE_URL`, `BONEDIGGER_BRAND`) are path/URL/brand knobs only. This spec introduces one new variable, `BONEDIGGER_SCREENSHOT` (`ask` (default) / `never` / `always`), to skip or pre-answer the prompt. |
+| User consent + disclosure | The user is told the image will be analyzed locally and what will be attached. Consent is explicit (`gum confirm`) and reversible. There is no existing remembered-consent mechanism — today's overrides (`IMAGE_INFO_FILE`, `BONEDIGGER_ISSUE_URL`, `BONEDIGGER_BRAND`) are path/URL/brand knobs only. This spec introduces one new variable, `BONEDIGGER_SCREENSHOT` (`ask` (default) / `never`), to opt out of the prompt entirely. There is deliberately **no** value that pre-answers consent with "yes": an environment variable can be set fleet-wide (`profile.d`, a wrapper script) without the user noticing, and capture + OCR must never run unprompted. Any unrecognized value is treated as `ask`. |
 | Ephemeral intermediates | OCR working files are written under `$XDG_RUNTIME_DIR/ujust-report/report-XXXXXX/` and removed on the EXIT trap, exactly like `summary.md` and `journal.txt`. |
 | Unconditional image deletion | **Every image intermediate is deleted on every exit path**, including the cancel path. This is stronger than the EXIT-trap rule above and is not optional. Covered: the portal-produced file at `results['uri']` (which lives *outside* `report-XXXXXX/` and is therefore untouched by the trap), the user-supplied image if it was copied into the report dir, and any cropped/downscaled derivatives written by the heuristics or OCR step. Requirements: (a) delete the portal file as soon as it is copied into `report-XXXXXX/`, not at exit; (b) register a dedicated cleanup for image files that runs even when the recipe takes the `trap - EXIT; exit 0` cancel-preserve path (`bonedigger-ujust.md`, "Report output structure") — that path preserves `summary.md`/`journal.txt` for the user, but must never preserve pixels; (c) if the user declines consent or aborts mid-flow, delete the images before returning. Withdrawn consent must leave no image on disk. |
 
@@ -114,7 +114,8 @@ gum confirm "Attach a screenshot / photo?"
         │  (no)  →  skip
         ▼  (yes)
 classify image (clean vs photo-of-screen vs unusable)
-        │  unusable → warn, offer re-capture, then continue
+        │  unusable → warn, offer re-capture; if declined or still
+        │              unusable, skip screenshot step and continue report
         ▼
 OCR on-device → scrub extracted text → fold into summary.md
         │
@@ -169,7 +170,8 @@ This doc is the spec. The recipe and any new env vars live in `common`; Dakota a
 - [ ] Missing `tesseract` or `python3-pillow`/`python3-numpy` degrades gracefully instead of failing the report.
 - [ ] Extracted text and OCR intermediates are removed on the EXIT trap.
 - [ ] All image intermediates — including the portal-produced file outside `report-XXXXXX/` — are deleted on every exit path, including the `trap - EXIT; exit 0` cancel-preserve path and declined consent.
-- [ ] Consent is explicit and reversible; the user is told what is attached.
+- [ ] Consent is explicit and reversible; the user is told what is attached. No environment variable can pre-answer consent with "yes" — `BONEDIGGER_SCREENSHOT` only accepts `ask` / `never`.
+- [ ] An `unusable` image skips only the screenshot step (after warn + re-capture offer) and never aborts the report.
 - [ ] `pre-commit run --all-files` passes.
 - [ ] `actionlint .github/workflows/*.yml` passes (only if a workflow changes).
 
