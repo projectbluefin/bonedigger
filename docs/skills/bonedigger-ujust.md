@@ -1,6 +1,6 @@
 # bonedigger — ujust report tool
 
-Load when working on the client-side diagnostic reporting tool in `projectbluefin/common`: `system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just`, `system_files/bluefin/usr/share/ublue-os/otel/ujust-report-config.yaml`, or the OTel deep metrics capture.
+Load when working on the client-side diagnostic reporting tool in `projectbluefin/common`: `system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just`, `system_files/bluefin/usr/libexec/bonedigger-report`, `system_files/bluefin/usr/share/ublue-os/otel/ujust-report-config.yaml`, or the OTel deep metrics capture.
 
 ## Commands
 
