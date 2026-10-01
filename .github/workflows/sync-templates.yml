@@ -1,6 +1,7 @@
 name: sync issue templates
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -57,7 +58,8 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           cd downstream
-          if git diff --quiet; then
+          git add -A .github/ISSUE_TEMPLATE/
+          if git diff --cached --quiet; then
             echo "No template changes for $REPO — skipping."
             exit 0
           fi
