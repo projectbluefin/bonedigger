@@ -6,15 +6,17 @@ body:
   - type: markdown
     attributes:
       value: |
-        Run `ujust report` before submitting. It captures your image, kernel, hardware, and logs — paste the gist URL below and we likely have everything we need.
+        You can run `ujust report` to collect diagnostics and create an issue directly. If it already created an issue, use that issue instead of submitting another report here.
+        To report through this form, describe the problem below. If you have a gist URL from `ujust report`, you can optionally include it.
 
   - type: input
     id: report-link
     attributes:
-      label: "ujust report gist URL"
+      label: "ujust report gist URL (optional)"
+      description: "Leave this blank if you do not have a gist URL. `ujust report` only creates a gist when smart logs are selected."
       placeholder: "https://gist.github.com/..."
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: what-happened
