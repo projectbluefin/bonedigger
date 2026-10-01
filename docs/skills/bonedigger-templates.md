@@ -45,10 +45,17 @@ metadata:
 
 | File | Type | Label |
 |------|------|-------|
-| `bug-report.yml` | Bug | `type/bug` |
-| `feature-request.yml` | Feature | check file |
-| `help-this-project.yml` | Help request | check file |
+| `bug-report.yml` | Bug | `bug`, `1-triage` |
+| `feature-request.yml` | Feature | `2-discussing` |
+| `help-this-project.yml` | Help request | `1-triage` |
 | `config.yml` | Template chooser config | n/a |
+
+Template labels must already exist in **all five downstream repositories**; GitHub
+ignores labels that do not exist in the destination repository. Before changing
+these declarations, check each consumer with `gh label list --repo <owner/repo>`.
+Bug reports and help requests start in human triage; feature proposals start in
+discussion. The issue forms retain their native `Bug` and `Feature` issue types.
+Hive manages subsequent queue transitions.
 
 ### bug-report.yml structure
 
