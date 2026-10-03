@@ -42,7 +42,8 @@ metadata:
    - Copy all `templates/*.yml` into `downstream/.github/ISSUE_TEMPLATE/`.
    - Commit and push `bonedigger/sync-templates-<sha8>`.
    - Open a PR against `testing` for Dakota and `main` for the other consumers,
-     first requesting `kind/automation`, with a label-less creation fallback.
+     without requesting labels that may not exist in the destination. PR creation
+     failures remain visible and fail the sync step.
    - Review and merge downstream PRs before calling the forms deployed.
 5. Keep per-repository `cancel-in-progress: false`. Cancellation after push but
    before PR creation can strand a remote branch. Serialization does not make
