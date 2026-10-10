@@ -123,9 +123,11 @@ failure when the source has changed.
 - [ ] Applicable checks and downstream delivery are verified for the actual revision.
 
 Pre-commit currently checks YAML syntax and workflow policy, not GitHub issue-form
-schema or unit tests. There is no PR-validation workflow or test directory on
-`main`. Run any tests explicitly if introduced; merely adding pre-commit CI does
-not run tests without a corresponding hook or job.
+schema or unit tests. The `pr-validate` workflow
+(`.github/workflows/pr-validate.yml`) runs on pull requests to `main` and
+merge-queue groups: it executes `python3 -m unittest discover -s tests` and then
+`pre-commit run --all-files`. It still does not validate the issue-form schema.
+Report the actual coverage rather than inferring it.
 
 ## Sources
 
