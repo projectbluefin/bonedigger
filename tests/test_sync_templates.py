@@ -1,5 +1,6 @@
 """Run the real sync steps against local Git repositories, without GitHub writes."""
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -23,6 +24,12 @@ def step(name):
 
 class TestSyncTemplates(unittest.TestCase):
     def test_sync_templates_lifecycle(self):
+        self.run_sync_lifecycle()
+
+    def test_pr_creation_failure_is_visible_and_not_retried(self):
+        self.run_sync_lifecycle(pr_failure=True)
+
+    def run_sync_lifecycle(self, pr_failure=False):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             downstream = workspace / "downstream"
@@ -49,15 +56,35 @@ class TestSyncTemplates(unittest.TestCase):
             binaries = workspace / "bin"
             binaries.mkdir()
             # Only the external GitHub PR creation is replaced; commits and pushes are real.
-            (binaries / "gh").write_text("#!/bin/sh\nexit 0\n")
+            (binaries / "gh").write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "with open(os.environ['GH_LOG'], 'a') as log:\n"
+                "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                "if os.environ['GH_FAIL'] == '1':\n"
+                "    print('PR creation failed', file=sys.stderr)\n"
+                "    sys.exit(42)\n"
+            )
             (binaries / "gh").chmod(0o755)
-            environment = dict(os.environ, PATH=f"{binaries}:{os.environ['PATH']}", REPO="projectbluefin/common")
+            environment = dict(os.environ, PATH=f"{binaries}:{os.environ['PATH']}", REPO="projectbluefin/common", GH_LOG=str(workspace / "gh.jsonl"), GH_FAIL=str(int(pr_failure)))
             for index, contents in enumerate(("name: Canonical bug form\n", "name: Updated bug form\n", "name: Updated bug form\n"), 1):
                 (source / "bug-report.yml").write_text(contents)
                 environment["SHA"] = f"{index:040x}"[::-1]
                 subprocess.run(["bash", "-euo", "pipefail", "-c", step("Copy templates")], cwd=workspace, env=environment, check=True)
                 before = git("rev-parse", "HEAD")
-                subprocess.run(["bash", "-euo", "pipefail", "-c", step("Open PR if changed")], cwd=workspace, env=environment, check=True)
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", step("Open PR if changed")], cwd=workspace, env=environment, capture_output=True, text=True)
+                calls = [json.loads(line) for line in (workspace / "gh.jsonl").read_text().splitlines()]
+                self.assertEqual(len(calls), min(index, 2))
+                args = calls[-1]
+                self.assertEqual(args[:2], ["pr", "create"])
+                self.assertNotIn("--label", args)
+                self.assertEqual(args[args.index("--repo") + 1], environment["REPO"])
+                self.assertEqual(args[args.index("--base") + 1], "main")
+                if pr_failure:
+                    self.assertEqual(result.returncode, 42)
+                    self.assertIn("PR creation failed", result.stderr)
+                    return
+                self.assertEqual(result.returncode, 0, result.stderr)
                 after = git("rev-parse", "HEAD")
                 self.assertEqual(after != before, index < 3, "New or modified templates must commit; unchanged templates must skip")
                 self.assertEqual(git("show", "HEAD:.github/ISSUE_TEMPLATE/bug-report.yml"), contents.strip())
