@@ -50,7 +50,7 @@ or trigger an escalation workflow in this repo. See the [client guide](bonedigge
 2. Put shared executable changes in common; do not duplicate client code here.
 3. Edit canonical forms here, then follow the [template guide](bonedigger-templates.md)
    to verify downstream branch → PR → merge delivery.
-4. Keep the workflow's declared five-consumer roster and App-token scope aligned.
+4. Keep the workflow's declared consumer roster and App-token scope aligned.
    Check destination availability; do not silently change the roster.
 5. Mark proposals as proposals. [QR output](bonedigger-qrcode.md) and
    [screenshot analysis](bonedigger-screenshots.md) are not shipped client features.
