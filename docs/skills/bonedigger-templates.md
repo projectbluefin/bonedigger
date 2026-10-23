@@ -122,10 +122,11 @@ failure when the source has changed.
 - [ ] `pre-commit run --all-files` and `actionlint .github/workflows/*.yml` pass.
 - [ ] Applicable checks and downstream delivery are verified for the actual revision.
 
-Pre-commit currently checks YAML syntax and workflow policy, not GitHub issue-form
-schema or unit tests. There is no PR-validation workflow or test directory on
-`main`. Run any tests explicitly if introduced; merely adding pre-commit CI does
-not run tests without a corresponding hook or job.
+The `tests/` directory contains Python tests, but there is no PR-validation
+workflow. Pre-commit currently checks YAML syntax and workflow policy; it does
+not validate GitHub issue-form schemas or run the Python tests. Run the tests
+explicitly; adding pre-commit CI alone will not run them without a test hook or
+job.
 
 ## Sources
 
