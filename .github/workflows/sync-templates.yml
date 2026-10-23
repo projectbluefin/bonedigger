@@ -77,28 +77,12 @@ jobs:
             -m "Automated sync — templates are maintained in projectbluefin/bonedigger." \
             -m "Do not edit these files directly in this repo."
           git push origin "$BRANCH"
-          PR_BODY_WITH_LABEL=$(cat <<EOF
-          Automated template sync from [projectbluefin/bonedigger](https://github.com/projectbluefin/bonedigger) @ '${SHA::8}'.
-
-          Templates are maintained in bonedigger — edit them there, not here.
-
-          ---
-          - [ ] Review template changes before merging
-          EOF
-          )
           PR_BODY=$(cat <<EOF
           Automated template sync from [projectbluefin/bonedigger](https://github.com/projectbluefin/bonedigger) @ '${SHA::8}'.
 
           Templates are maintained in bonedigger — edit them there, not here.
           EOF
           )
-          gh pr create \
-            --repo "$REPO" \
-            --title "chore(templates): sync issue templates from bonedigger" \
-            --body "$PR_BODY_WITH_LABEL" \
-            --head "$BRANCH" \
-            --base "$BASE" \
-            --label "kind/automation" 2>/dev/null || \
           gh pr create \
             --repo "$REPO" \
             --title "chore(templates): sync issue templates from bonedigger" \
