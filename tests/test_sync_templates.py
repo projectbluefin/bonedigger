@@ -22,7 +22,7 @@ def step(name):
     return textwrap.dedent("\n".join(lines[run + 1 : end]))
 
 
-def prepare(workspace, *, fail_on_label=False):
+def prepare(workspace):
     """Build a downstream clone, a bonedigger checkout, and a recording `gh` stub."""
     downstream = workspace / "downstream"
     downstream.mkdir()
@@ -48,16 +48,13 @@ def prepare(workspace, *, fail_on_label=False):
     binaries = workspace / "bin"
     binaries.mkdir()
     log = workspace / "gh-invocations"
-    # Record every argument vector so the PR contract can be asserted; the
-    # label-bearing attempt optionally fails, as it does on a repo without the label.
+    # Record every argument vector so the PR contract can be asserted.
     (binaries / "gh").write_text(
         "#!/usr/bin/env python3\n"
         "import json, sys\n"
         f"log = {str(log)!r}\n"
         "with open(log, 'a') as handle:\n"
         "    handle.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-        f"fail_on_label = {bool(fail_on_label)!r}\n"
-        "sys.exit(1 if fail_on_label and '--label' in sys.argv else 0)\n"
     )
     (binaries / "gh").chmod(0o755)
     return git, source, binaries, log
@@ -76,8 +73,8 @@ def flag(argv, name):
 class TestSyncPullRequestContract(unittest.TestCase):
     """The `gh pr create` call is the sync's only externally visible product."""
 
-    def run_sync(self, workspace, repo, *, fail_on_label=False):
-        git, source, binaries, log = prepare(workspace, fail_on_label=fail_on_label)
+    def run_sync(self, workspace, repo):
+        git, source, binaries, log = prepare(workspace)
         environment = dict(
             os.environ,
             PATH=f"{binaries}:{os.environ['PATH']}",
@@ -118,25 +115,11 @@ class TestSyncPullRequestContract(unittest.TestCase):
                     flag(argv, "--title"),
                     "chore(templates): sync issue templates from bonedigger",
                 )
-                self.assertEqual(flag(argv, "--label"), "kind/automation")
-
-    def test_unlabelled_retry_keeps_the_pull_request_when_the_label_is_missing(self):
-        with tempfile.TemporaryDirectory() as directory:
-            _, calls = self.run_sync(
-                Path(directory), "projectbluefin/common", fail_on_label=True
-            )
-        self.assertEqual(len(calls), 2, "a rejected label must be retried without it")
-        labelled, retry = calls
-        self.assertIn("--label", labelled)
-        self.assertNotIn("--label", retry)
-        for argv in calls:
-            self.assertEqual(flag(argv, "--base"), "main")
-            self.assertEqual(flag(argv, "--head"), "bonedigger/sync-templates-abcdef01")
-        self.assertIn("Review template changes before merging", flag(labelled, "--body"))
-        self.assertNotIn("- [ ]", flag(retry, "--body"))
-        for argv in calls:
-            self.assertIn("projectbluefin/bonedigger", flag(argv, "--body"))
-            self.assertIn("abcdef01", flag(argv, "--body"))
+                self.assertNotIn(
+                    "--label", argv, "downstream repos may lack any label; never request one"
+                )
+                self.assertIn("projectbluefin/bonedigger", flag(argv, "--body"))
+                self.assertIn("abcdef01", flag(argv, "--body"))
 
     def test_no_pull_request_is_opened_when_templates_are_unchanged(self):
         with tempfile.TemporaryDirectory() as directory:
