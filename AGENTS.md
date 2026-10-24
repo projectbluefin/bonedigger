@@ -26,9 +26,11 @@ Never report success before running these checks and reading the output.
 
 The configured pre-commit hooks cover YAML parsing, whitespace, merge conflicts,
 private keys, file size, workflow linting, and action-reference policy. They do not
-validate the GitHub issue-form schema or run unit tests. There is no PR-validation
-workflow on `main`; adding pre-commit CI alone does not gate tests that are not
-wired into its hooks. Report the actual coverage rather than inferring it.
+validate the GitHub issue-form schema or run unit tests. The `pr-validate`
+workflow (`.github/workflows/pr-validate.yml`) runs on pull requests to `main`
+and merge-queue groups: it executes `python3 -m unittest discover -s tests` and
+then `pre-commit run --all-files`. It still does not validate the issue-form
+schema. Report the actual coverage rather than inferring it.
 
 `.github/copilot-setup-steps.yml` is outside `.github/workflows/`, so GitHub does
 not execute it as a setup workflow. Do not assume it installed local tools.
