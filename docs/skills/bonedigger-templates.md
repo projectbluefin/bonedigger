@@ -56,13 +56,15 @@ metadata:
 
 | File | Issue type | Declared labels | Required inputs |
 |------|------------|-----------------|-----------------|
-| `bug-report.yml` | `Bug` | `type/bug` | `report-link`, `what-happened` |
-| `feature-request.yml` | `Feature` | `type/feature`, `status/discussing` | `problem`, `solution` |
-| `help-this-project.yml` | none | `kind:agent-donation` | `target-url`, `flow`, `goal` |
+| `bug-report.yml` | `Bug` | none | `report-link`, `what-happened` |
+| `feature-request.yml` | `Feature` | none | `problem`, `solution` |
+| `help-this-project.yml` | none | none | `target-url`, `flow`, `goal` |
 | `config.yml` | chooser configuration | none | `blank_issues_enabled: true` |
 
 Labels are declarations, not label creation. GitHub omits a form's label if it
-is absent from the destination repository. Inspect destination labels and enabled
+is absent from the destination repository, and consumers do not share a common
+label set, so the forms declare no labels; bug/feature classification is carried
+by the issue type. Inspect destination labels and enabled
 organization issue types before relying on them for routing. This repository
 ships no donation fast-track or approval workflow; the help form's text does not
 prove Hive integration exists or that the request was admitted to a queue.
