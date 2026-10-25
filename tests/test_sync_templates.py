@@ -95,8 +95,6 @@ class TestSyncPullRequestContract(unittest.TestCase):
 
     def test_base_branch_is_chosen_per_downstream_repo(self):
         expected = {
-            "projectbluefin/bluefin": "main",
-            "projectbluefin/bluefin-lts": "main",
             "projectbluefin/common": "main",
             "projectbluefin/dakota": "testing",
             "projectbluefin/knuckle": "main",

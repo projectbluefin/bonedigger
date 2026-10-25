@@ -20,8 +20,6 @@ jobs:
       fail-fast: false
       matrix:
         repo:
-          - projectbluefin/bluefin
-          - projectbluefin/bluefin-lts
           - projectbluefin/common
           - projectbluefin/dakota
           - projectbluefin/knuckle
@@ -32,7 +30,7 @@ jobs:
         with:
           app-id: ${{ secrets.MERGERAPTOR_APP_ID }}
           private-key: ${{ secrets.MERGERAPTOR_PRIVATE_KEY }}
-          repositories: bluefin,bluefin-lts,common,dakota,knuckle
+          repositories: common,dakota,knuckle
 
       - name: Checkout bonedigger
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

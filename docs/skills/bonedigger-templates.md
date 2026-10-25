@@ -25,8 +25,6 @@ metadata:
 
 1. Read the canonical forms and current workflow before changing their contract.
 2. Preserve the declared consumer roster unless a maintainer approves a change:
-   - `projectbluefin/bluefin`
-   - `projectbluefin/bluefin-lts`
    - `projectbluefin/common`
    - `projectbluefin/dakota`
    - `projectbluefin/knuckle`
