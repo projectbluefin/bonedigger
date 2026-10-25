@@ -25,8 +25,6 @@ metadata:
 
 1. Read the canonical forms and current workflow before changing their contract.
 2. Preserve the declared consumer roster unless a maintainer approves a change:
-   - `projectbluefin/bluefin`
-   - `projectbluefin/bluefin-lts`
    - `projectbluefin/common`
    - `projectbluefin/dakota`
    - `projectbluefin/knuckle`
@@ -42,7 +40,8 @@ metadata:
    - Copy all `templates/*.yml` into `downstream/.github/ISSUE_TEMPLATE/`.
    - Commit and push `bonedigger/sync-templates-<sha8>`.
    - Open a PR against `testing` for Dakota and `main` for the other consumers,
-     first requesting `kind/automation`, with a label-less creation fallback.
+     without requesting labels that may not exist in the destination. PR creation
+     failures remain visible and fail the sync step.
    - Review and merge downstream PRs before calling the forms deployed.
 5. Keep per-repository `cancel-in-progress: false`. Cancellation after push but
    before PR creation can strand a remote branch. Serialization does not make
@@ -58,13 +57,15 @@ metadata:
 
 | File | Issue type | Declared labels | Required inputs |
 |------|------------|-----------------|-----------------|
-| `bug-report.yml` | `Bug` | `type/bug` | `report-link`, `what-happened` |
-| `feature-request.yml` | `Feature` | `type/feature`, `status/discussing` | `problem`, `solution` |
-| `help-this-project.yml` | none | `kind:agent-donation` | `target-url`, `flow`, `goal` |
+| `bug-report.yml` | `Bug` | none | `report-link`, `what-happened` |
+| `feature-request.yml` | `Feature` | none | `problem`, `solution` |
+| `help-this-project.yml` | none | none | `target-url`, `flow`, `goal` |
 | `config.yml` | chooser configuration | none | `blank_issues_enabled: true` |
 
 Labels are declarations, not label creation. GitHub omits a form's label if it
-is absent from the destination repository. Inspect destination labels and enabled
+is absent from the destination repository, and consumers do not share a common
+label set, so the forms declare no labels; bug/feature classification is carried
+by the issue type. Inspect destination labels and enabled
 organization issue types before relying on them for routing. This repository
 ships no donation fast-track or approval workflow; the help form's text does not
 prove Hive integration exists or that the request was admitted to a queue.
@@ -123,9 +124,11 @@ failure when the source has changed.
 - [ ] Applicable checks and downstream delivery are verified for the actual revision.
 
 Pre-commit currently checks YAML syntax and workflow policy, not GitHub issue-form
-schema or unit tests. There is no PR-validation workflow or test directory on
-`main`. Run any tests explicitly if introduced; merely adding pre-commit CI does
-not run tests without a corresponding hook or job.
+schema or unit tests. The `pr-validate` workflow
+(`.github/workflows/pr-validate.yml`) runs on pull requests to `main` and
+merge-queue groups: it executes `python3 -m unittest discover -s tests` and then
+`pre-commit run --all-files`. It still does not validate the issue-form schema.
+Report the actual coverage rather than inferring it.
 
 ## Sources
 
