@@ -73,7 +73,9 @@ The comment records the exact deployed fingerprint **when available**; unavailab
 
 Image metadata starts at `IMAGE_INFO_FILE`. With `jq`, `read_boot_status` prefers the live booted ref from `bootc status --json`, falling back to `/run/ublue-os/booted-image` when no ref is available. It updates ref, tag (unless digest-pinned), and image name; version comes from `/etc/os-release`. The snapshot fallback supplies a ref, not a digest.
 
-`route_issue_repo` delegates to **`ublue-image-repo`**, not `BUG_REPORT_URL`: `bluefin-lts*` names route to `projectbluefin/bluefin-lts`; plain `bluefin` uses that repository for `lts*` tags and `projectbluefin/bluefin` otherwise. Other `bluefin*` names route to Bluefin, and `dakota*` names to `projectbluefin/dakota`, regardless of tag. Unrecognized names use Bluefin LTS for `lts*` tags, otherwise `projectbluefin/common`. Feature requests always route to common. Keep this grammar in the shared helper, not a second client lookup table.
+`route_issue_repo` delegates to **`ublue-image-repo`**, not `BUG_REPORT_URL`. With the routing fix for [Common's archived bug-report destinations](https://github.com/projectbluefin/common/issues/1499), `dakota*` names keep routing to `projectbluefin/dakota`; all other names and tags, including Bluefin and Bluefin LTS, use the caller's default. Reports and confirmations by issue number default to `projectbluefin/common`, as do feature requests. The former Bluefin and LTS destinations are archived. Keep this grammar in the shared helper, not a second client lookup table.
+
+This change applies when the updated helper is installed. Existing drafts keep their saved `repo.txt` destination on resume, and explicit GitHub issue URLs keep the repository in the URL. `ujust changelogs` also uses this helper but retains its explicit `projectbluefin/bluefin` default; report routing does not change that default.
 
 The Bash client calls `gum` without installing it. Missing `gh` triggers an offer to install it with Homebrew; missing/failed Homebrew leaves the draft intact. Failed active authentication offers `gh auth login --web --skip-ssh-key`. Missing `jq` yields unknown image fields/digest; bootc failures yield unavailable status. Diagnostic commands generally tolerate unavailable commands or inaccessible logs with empty output: that is not evidence that the system is healthy. Browser opening uses `xdg-open`, falling back to printing the URL. No dependency is promised installed by this guide.
 
@@ -100,9 +102,9 @@ Actual environment inputs are `IMAGE_INFO_FILE`, `BONEDIGGER_BRAND`, `XDG_STATE_
 
 ## Sources
 
-Current implementation, pinned to common commit `cc6734876a6549340d2979d95771752d718f6f0f`:
+Client and wrapper pinned to common commit `cc6734876a6549340d2979d95771752d718f6f0f`:
 
 - [Reporting client](https://github.com/projectbluefin/common/blob/cc6734876a6549340d2979d95771752d718f6f0f/system_files/bluefin/usr/libexec/bonedigger-report): `main`, `collect_baseline`, `profile_*`, `scrub_*`, `submit_draft`, `confirm_report`, `persist_local_copy`.
 - [ujust wrapper](https://github.com/projectbluefin/common/blob/cc6734876a6549340d2979d95771752d718f6f0f/system_files/bluefin/usr/share/ublue-os/just/60-bonedigger.just).
-- [Canonical routing helper](https://github.com/projectbluefin/common/blob/cc6734876a6549340d2979d95771752d718f6f0f/system_files/shared/usr/libexec/ublue-image-repo).
+- [Canonical routing helper with the fix for archived destinations](https://github.com/arteeh/common/blob/10705db1183463b10831902c9ed592499a17a0fc/system_files/shared/usr/libexec/ublue-image-repo).
 - GitHub CLI manual, verified through Context7 `/websites/cli_github_manual`: [issue creation](https://cli.github.com/manual/gh_issue_create), [issue comments](https://cli.github.com/manual/gh_issue_comment), [gist creation](https://cli.github.com/manual/gh_gist_create). These describe CLI semantics, not additional Bonedigger capabilities.
