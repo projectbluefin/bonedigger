@@ -129,6 +129,15 @@ def install_errors(root, text, source):
     return errors
 
 
+# pipx options that take a separate value (`--opt value`); the value must not
+# be mistaken for the package spec. `--opt=value` is one token and needs no entry.
+PIPX_VALUE_OPTIONS = frozenset({
+    "--app", "--backend", "--cooldown", "--fetch-python", "--include-resources-from",
+    "--index-url", "--lock", "--pip-args", "--preinstall", "--python",
+    "--python-args", "--suffix", "--upgrade-strategy", "--with",
+})
+
+
 def pipx_errors(root, text, source):
     """pipx run/install resolves a bare name to the newest release on every
     run; the package spec (positional or --spec) must carry an == pin."""
@@ -155,6 +164,9 @@ def pipx_errors(root, text, source):
                     continue
                 if arg.startswith("--spec="):
                     spec = arg.split("=", 1)[1]
+                    continue
+                if arg in PIPX_VALUE_OPTIONS:
+                    i += 1
                     continue
                 if arg.startswith("-"):
                     continue
@@ -200,7 +212,7 @@ def check_tree(root):
 # Installs that predate this gate and still need pinning. Each entry is the
 # exact error the gate reports today; once the install is pinned the entry
 # goes stale and the test fails until it is removed, so the list only shrinks.
-# Pinning validate.yml (pip install -r .github/requirements-ci.txt) must delete
+# Pinning pr-validate.yml (pip install --user -r .github/requirements-ci.txt) must delete
 # its entry below in the same commit.
 BASELINE = frozenset({
     ".github/workflows/pr-validate.yml:27:1: pipx package must use an exact == version: pre-commit",
@@ -254,6 +266,9 @@ class PythonInstallPinTests(unittest.TestCase):
             "pipx install --force pre-commit==4.7.0",
             "sudo pipx install pre-commit==4.7.0 && pre-commit run",
             "pipx run pre-commit==4.7.0 run pre-commit",
+            "pipx run --python 3.12 pre-commit==4.7.0 run",
+            "pipx run --pip-args '--no-cache-dir' --path pre-commit==4.7.0 run",
+            "pipx install --suffix _x --python=3.12 pre-commit==4.7.0",
             "# pipx run pre-commit",
             "echo 'pipx run pre-commit'",
         ):
@@ -267,6 +282,8 @@ class PythonInstallPinTests(unittest.TestCase):
             "echo start && pipx run pre-commit run",
             "pipx run \\\n pre-commit run",
             "pipx run --python 3.12",
+            "pipx run --python 3.12 pre-commit run",
+            "pipx install --pip-args=-q --suffix _x pre-commit",
             "pipx run ${TOOL} run",
         ):
             with self.subTest(command=command):
