@@ -1,0 +1,3 @@
+# Python tools CI installs. Exact pins only; tests/test_python_install_pins.py
+# fails the check if an unpinned install lands in a workflow.
+pre-commit==4.7.0
