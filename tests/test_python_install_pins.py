@@ -215,7 +215,6 @@ def check_tree(root):
 # Pinning pr-validate.yml (pip install --user -r .github/requirements-ci.txt) must delete
 # its entry below in the same commit.
 BASELINE = frozenset({
-    ".github/workflows/pr-validate.yml:27:1: pipx package must use an exact == version: pre-commit",
 })
 
 

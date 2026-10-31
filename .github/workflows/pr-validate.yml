@@ -25,4 +25,5 @@ jobs:
           python3 -m unittest discover -s tests -v
       - name: pre-commit
         run: |
-          pipx run pre-commit run --all-files --show-diff-on-failure
+          python3 -m pip install --user -r .github/requirements-ci.txt
+          "$HOME/.local/bin/pre-commit" run --all-files --show-diff-on-failure
