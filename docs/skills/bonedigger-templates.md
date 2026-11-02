@@ -79,19 +79,21 @@ that pretends the current field is optional.
 
 ## Delivery hazards to verify
 
-- **New files:** the workflow's `git diff --quiet` does not see untracked additions.
-  Exercise an added form, a changed form, and an unchanged copy when changing
-  detection; test both destination bases, not only common's `main` path.
+- **New files:** change detection relies on `git add -A` staging the copied forms
+  before `git diff --cached --quiet`; a plain `git diff --quiet` would not see
+  untracked additions. Exercise an added form, a changed form, and an unchanged
+  copy when changing detection; test both destination bases, not only common's
+  `main` path.
 - **Chooser configuration:** copying `config.yml` replaces the destination file.
   The canonical file has no `contact_links`, so existing downstream links can be
   lost. Review the config diff before merging a sync PR.
 - **Reruns:** a per-SHA branch may already exist after a partial failure. A fresh
   rerun can encounter a non-fast-forward push or an existing PR. Inspect both
   before retrying; do not describe the current workflow as idempotent.
-- **Revisions and triggers:** the current workflow has no `workflow_dispatch`.
-  Re-running a failed run retains its original commit/ref; it does not test a
-  subsequent repair on `main`. A workflow-only change also does not match the
-  `templates/**` push filter.
+- **Revisions and triggers:** re-running a failed run retains its original
+  commit/ref; it does not test a subsequent repair on `main`. A workflow-only
+  change does not match the `templates/**` push filter, so deliver it with a
+  `workflow_dispatch` run on `main`.
 
 Use actual job logs to distinguish startup/token failure from shell-script or
 PR-creation failure. Do not diagnose missing secrets merely from an old run's
@@ -116,7 +118,7 @@ failure when the source has changed.
 
 - [ ] Canonical form IDs, required fields, types, and labels match their intended contract.
 - [ ] Destination label/type availability and archived status have been checked.
-- [ ] Workflow matrix and App-token scope match the declared five consumers.
+- [ ] Workflow matrix and App-token scope match the declared consumer roster.
 - [ ] PR bases are `testing` for Dakota and `main` elsewhere.
 - [ ] New, modified, and unchanged files are exercised when sync behavior changes.
 - [ ] Chooser links and rerun behavior are reviewed before downstream merges.
@@ -127,8 +129,11 @@ Pre-commit currently checks YAML syntax and workflow policy, not GitHub issue-fo
 schema or unit tests. The `pr-validate` workflow
 (`.github/workflows/pr-validate.yml`) runs on pull requests to `main` and
 merge-queue groups: it executes `python3 -m unittest discover -s tests` and then
-`pre-commit run --all-files`. It still does not validate the issue-form schema.
-Report the actual coverage rather than inferring it.
+`pre-commit run --all-files`. The unit tests include `tests/test_issue_forms.py`,
+which checks the forms against GitHub's issue-form syntax, and
+`tests/test_consumer_roster.py`, which keeps the matrix, token scope, and the
+roster above aligned. Neither proves GitHub renders the forms or that consumers
+received them. Report the actual coverage rather than inferring it.
 
 ## Sources
 
