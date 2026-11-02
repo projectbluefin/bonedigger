@@ -29,8 +29,10 @@ private keys, file size, workflow linting, and action-reference policy. They do 
 validate the GitHub issue-form schema or run unit tests. The `pr-validate`
 workflow (`.github/workflows/pr-validate.yml`) runs on pull requests to `main`
 and merge-queue groups: it executes `python3 -m unittest discover -s tests` and
-then `pre-commit run --all-files`. It still does not validate the issue-form
-schema. Report the actual coverage rather than inferring it.
+then `pre-commit run --all-files`. The unit tests include an issue-form syntax
+check (`tests/test_issue_forms.py`); nothing proves GitHub renders the forms
+or that consumers received them. Report the actual coverage rather than
+inferring it.
 
 `.github/copilot-setup-steps.yml` is outside `.github/workflows/`, so GitHub does
 not execute it as a setup workflow. Do not assume it installed local tools.
@@ -82,7 +84,7 @@ Inspect the consumer's build element (`*.bst`) or container build step to identi
 what installs a shared file. Shared client behavior belongs in common; Dakota-only
 overrides belong in Dakota. Do not assume every consumer has identical packaging.
 
-Keep the declared five-consumer roster in the template guide aligned with the
+Keep the declared consumer roster in the template guide aligned with the
 workflow and its token scope. Check whether destinations are archived or otherwise
 unwritable before attempting delivery; changing the roster requires a maintainer
 decision, not an agent silently deleting a target.
