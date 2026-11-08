@@ -38,7 +38,8 @@ metadata:
    - A push to `main` changing `templates/**` triggers synchronization.
    - Check out bonedigger and each downstream repository.
    - Copy all `templates/*.yml` into `downstream/.github/ISSUE_TEMPLATE/`.
-   - Commit and push `bonedigger/sync-templates-<sha8>`.
+   - Commit and push `bonedigger/sync-templates-<sha8>` if the remote branch is
+     absent; otherwise reuse it without rewriting maintainer commits.
    - Open a PR against `testing` for Dakota and `main` for the other consumers,
      without requesting labels that may not exist in the destination. PR creation
      failures remain visible and fail the sync step.
@@ -88,8 +89,10 @@ that pretends the current field is optional.
   The canonical file has no `contact_links`, so existing downstream links can be
   lost. Review the config diff before merging a sync PR.
 - **Reruns:** a per-SHA branch may already exist after a partial failure. A fresh
-  rerun can encounter a non-fast-forward push or an existing PR. Inspect both
-  before retrying; do not describe the current workflow as idempotent.
+  rerun reuses that remote branch and retries PR creation without force-pushing.
+  If the PR already exists, creation still fails visibly; inspect the existing
+  PR before retrying again. Do not describe the current workflow as fully
+  idempotent.
 - **Revisions and triggers:** re-running a failed run retains its original
   commit/ref; it does not test a subsequent repair on `main`. A workflow-only
   change does not match the `templates/**` push filter, so deliver it with a
