@@ -74,7 +74,13 @@ jobs:
             -m "chore(templates): sync issue templates from projectbluefin/bonedigger@${SHA::8}" \
             -m "Automated sync — templates are maintained in projectbluefin/bonedigger." \
             -m "Do not edit these files directly in this repo."
-          git push origin "$BRANCH"
+          # A re-run for the same commit finds the branch it pushed before; reuse it
+          # rather than fail non-fast-forward, so a failed PR creation can be retried.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            echo "Branch $BRANCH already exists on $REPO — reusing it."
+          else
+            git push origin "$BRANCH"
+          fi
           PR_BODY=$(cat <<EOF
           Automated template sync from [projectbluefin/bonedigger](https://github.com/projectbluefin/bonedigger) @ '${SHA::8}'.
 
