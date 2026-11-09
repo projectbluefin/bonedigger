@@ -154,6 +154,56 @@ class TestSyncPullRequestContract(unittest.TestCase):
                 "an unchanged re-run must not push a branch",
             )
 
+    def test_rerun_for_the_same_commit_retries_pr_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            git, source, binaries, log = prepare(workspace)
+            (binaries / "gh").write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                f"with open({str(log)!r}, 'a') as handle:\n"
+                "    handle.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                "sys.exit(int(os.environ['GH_EXIT']))\n"
+            )
+            environment = dict(
+                os.environ,
+                PATH=f"{binaries}:{os.environ['PATH']}",
+                REPO="projectbluefin/common",
+                SHA="3" * 40,
+            )
+            branch = "bonedigger/sync-templates-33333333"
+            results = []
+            for day, gh_exit in (("01", "1"), ("02", "0")):
+                # Each run starts from a fresh checkout of the downstream default
+                # branch, on a later runner, so its sync commit differs.
+                git("checkout", "-q", "main")
+                if git("branch", "--list", branch):
+                    git("branch", "-D", branch)
+                environment["GIT_COMMITTER_DATE"] = f"2026-01-{day}T00:00:00Z"
+                environment["GH_EXIT"] = gh_exit
+                for name in ("Copy templates", "Open PR if changed"):
+                    results.append(
+                        subprocess.run(
+                            ["bash", "-euo", "pipefail", "-c", step(name)],
+                            cwd=workspace,
+                            env=environment,
+                            capture_output=True,
+                            text=True,
+                        )
+                    )
+                if gh_exit == "1":
+                    pushed = git("rev-parse", f"refs/heads/{branch}")
+            self.assertEqual(results[1].returncode, 1, "the first PR creation fails")
+            self.assertEqual(results[3].returncode, 0, results[3].stderr)
+            calls = invocations(log)
+            self.assertEqual(len(calls), 2, "the re-run must reach gh pr create again")
+            self.assertEqual(flag(calls[-1], "--head"), branch)
+            self.assertEqual(
+                git("ls-remote", "origin", f"refs/heads/{branch}").split()[0],
+                pushed,
+                "the re-run reuses the pushed branch instead of rewriting it",
+            )
+
 
 class TestSyncTemplates(unittest.TestCase):
     def test_sync_templates_lifecycle(self):
