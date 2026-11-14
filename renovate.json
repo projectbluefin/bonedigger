@@ -2,5 +2,38 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>projectbluefin/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "Third-party GitHub Actions updates wait three days after release, then Renovate automerges them. The hive also merges Renovate PRs once the required checks pass, because mergeraptor is a trusted bot.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["!projectbluefin/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "github-actions-third-party-non-major",
+      "pinDigests": true,
+      "minimumReleaseAge": "3 days",
+      "automerge": true
+    },
+    {
+      "description": "First-party projectbluefin/** actions merge right away and open at any time.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["projectbluefin/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "github-actions-first-party-non-major",
+      "pinDigests": true,
+      "schedule": ["at any time"],
+      "automerge": true
+    },
+    {
+      "description": "sync-templates.yml is a human-merge path in the hive (it holds the MergeRaptor App key that writes to other repos). Give its updates their own branches, so a pin-only update to it is a PR of its own that the hive's pin-only exception can merge, instead of being held with other workflows.",
+      "matchFileNames": [".github/workflows/sync-templates.yml"],
+      "additionalBranchPrefix": "publishing-workflows-"
+    },
+    {
+      "description": "Renovate never automerges GitHub Actions majors. The hive's trusted-bot merge policy is independent of this setting.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
   ]
 }
