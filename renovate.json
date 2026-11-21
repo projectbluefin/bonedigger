@@ -25,9 +25,10 @@
       "automerge": true
     },
     {
-      "description": "sync-templates.yml is a human-merge path in the hive (it holds the MergeRaptor App key that writes to other repos). Give its updates their own branches, so a pin-only update to it is a PR of its own that the hive's pin-only exception can merge, instead of being held with other workflows.",
+      "description": "sync-templates.yml is a human-merge path in the hive (it holds the MergeRaptor App key that writes to other repos). Give its updates their own branches, so a pin-only update to it is a PR of its own that the hive's pin-only exception can merge, instead of being held with other workflows. Renovate doesn't merge these updates itself, because its own merge would skip the hive's hold on these files. The hive merges a pin-only update, and anything else, a major included, waits for a person.",
       "matchFileNames": [".github/workflows/sync-templates.yml"],
-      "additionalBranchPrefix": "publishing-workflows-"
+      "additionalBranchPrefix": "publishing-workflows-",
+      "automerge": false
     },
     {
       "description": "Renovate never automerges GitHub Actions majors. The hive's trusted-bot merge policy is independent of this setting.",
